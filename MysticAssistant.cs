@@ -28,6 +28,7 @@ namespace MysticAssistant
             harmony.Patch(AccessTools.Method(typeof(Interaction_MysticShop), "Start"), postfix: new HarmonyMethod(patchType, nameof(SetUpMysticAssistant)));
             harmony.Patch(AccessTools.Method(typeof(Interaction_MysticShop), "OnSecondaryInteract"), prefix: new HarmonyMethod(patchType, nameof(PrefixSecondaryInteract)));
             harmony.Patch(AccessTools.Method(typeof(UIItemSelectorOverlayController), "RefreshContextText"), prefix: new HarmonyMethod(patchType, nameof(ModdedRefreshContextTextForShop)));
+            harmony.Patch(AccessTools.Method(typeof(UIItemSelectorOverlayController), "OnItemClicked"), prefix: new HarmonyMethod(patchType, nameof(ModdedOnItemClicked)));
         }
 
         public static bool ModdedRefreshContextTextForShop(UIItemSelectorOverlayController __instance,
@@ -67,6 +68,84 @@ namespace MysticAssistant
             {
                 ____buttonPromptText.text = string.Format(____contextString, InventoryItem.LocalizedName(____category.MostRecentItem)) + ____addtionalText;
             }
+
+            return false;
+        }
+
+        public static bool ModdedOnItemClicked(UIItemSelectorOverlayController __instance,
+            ItemSelector.Params ____params,
+            GenericInventoryItem item)
+        {
+            if (____params.Key != SHOP_CONTEXT_KEY)
+            {
+                return true;
+            }
+
+            MethodInfo getItemQuantity = AccessTools.Method(typeof(UIItemSelectorOverlayController), "GetItemQuantity");
+            Console.WriteLine(getItemQuantity.ToString());
+            var temp = (int)getItemQuantity.Invoke(__instance, new object[] { item.Type }) > 0;
+            Console.WriteLine("quantity gt 0: " + temp);
+
+            if (____params.Context == ItemSelector.Context.SetLabel)
+            {
+                Choose();
+                return false;
+            }
+            
+            if ((int)getItemQuantity.Invoke(__instance, new object[] { item.Type }) > 0)
+            {
+                if (____params.Context != ItemSelector.Context.Buy)
+                {
+                    Choose();
+                    return false;
+                }
+                TraderTrackerItems traderTrackerItems = __instance.CostProvider?.Invoke(item.Type);
+                if (traderTrackerItems != null && Inventory.GetItemQuantity(InventoryItem.ITEM_TYPE.GOD_TEAR) >= traderTrackerItems.SellPriceActual)
+                {
+                    Choose();
+                    return false;
+                }
+            }
+            item.Shake();
+            AudioManager.Instance.PlayOneShot("event:/ui/negative_feedback");
+            void Choose()
+            {
+                __instance.OnItemChosen?.Invoke(item.Type);
+                if (____params.HideOnSelection)
+                {
+                    __instance.Hide();
+                }
+                else
+                {
+                    __instance.UpdateQuantities();
+                }
+            }
+
+            //UIItemSelectorOverlayController.//<> c__DisplayClass44_0 CS$<> 8__locals1;
+            //CS$<> 8__locals1.<> 4__this = this;
+            //CS$<> 8__locals1.item = item;
+            //if (this._context == ItemSelector.Context.SetLabel)
+            //{
+            //    this.< OnItemClicked > g__Choose | 44_0(ref CS$<> 8__locals1);
+            //    return;
+            //}
+            //if (this.GetItemQuantity(CS$<> 8__locals1.item.Type) > 0)
+            //{
+            //    if (this._context != ItemSelector.Context.Buy)
+            //    {
+            //        this.< OnItemClicked > g__Choose | 44_0(ref CS$<> 8__locals1);
+            //        return;
+            //    }
+            //    Func<InventoryItem.ITEM_TYPE, TraderTrackerItems> costProvider = this.CostProvider;
+            //    TraderTrackerItems traderTrackerItems = (costProvider != null) ? costProvider(CS$<> 8__locals1.item.Type) : null;
+            //    if (traderTrackerItems != null && Inventory.GetItemQuantity(InventoryItem.ITEM_TYPE.BLACK_GOLD) >= traderTrackerItems.SellPriceActual)
+            //    {
+            //        this.< OnItemClicked > g__Choose | 44_0(ref CS$<> 8__locals1);
+            //        return;
+            //    }
+            //}
+            //CS$<> 8__locals1.item.Shake();
+            //AudioManager.Instance.PlayOneShot("event:/ui/negative_feedback");
 
             return false;
         }
@@ -126,11 +205,18 @@ namespace MysticAssistant
             UIItemSelectorOverlayController itemSelector4 = itemSelector;
             itemSelector4.OnItemChosen = (Action<InventoryItem.ITEM_TYPE>)Delegate.Combine(itemSelector4.OnItemChosen, new Action<InventoryItem.ITEM_TYPE>(delegate (InventoryItem.ITEM_TYPE chosenItem)
             {
-                TraderTrackerItems tradeItem = GetTradeItem(TraderInfo, chosenItem);   
-                Inventory.ChangeItemQuantity((int)godTearTTI.itemForTrade, -tradeItem.SellPriceActual, 0);
-                Inventory.ChangeItemQuantity((int)chosenItem, 1, 0);
-                AudioManager.Instance.PlayOneShot("event:/followers/pop_in", __instance.gameObject);
-                ResourceCustomTarget.Create(__instance.gameObject, PlayerFarming.Instance.transform.position, InventoryItem.ITEM_TYPE.GOD_TEAR, delegate () { }, true);
+                if (GetTradeItem(TraderInfo, chosenItem) != null && Inventory.GetItemQuantity(InventoryItem.ITEM_TYPE.GOD_TEAR) >= GetTradeItem(TraderInfo, chosenItem).SellPriceActual)
+                {
+                    TraderTrackerItems tradeItem = GetTradeItem(TraderInfo, chosenItem);
+                    Inventory.ChangeItemQuantity((int)godTearTTI.itemForTrade, -tradeItem.SellPriceActual, 0);
+                    Inventory.ChangeItemQuantity((int)chosenItem, 1, 0);
+                    AudioManager.Instance.PlayOneShot("event:/followers/pop_in", __instance.gameObject);
+                    ResourceCustomTarget.Create(__instance.gameObject, PlayerFarming.Instance.transform.position, InventoryItem.ITEM_TYPE.GOD_TEAR, delegate () { }, true);
+                }
+                else
+                {
+                    AudioManager.Instance.PlayOneShot("event:/ui/negative_feedback");
+                }
             }));
 
             UIItemSelectorOverlayController itemSelector2 = itemSelector;
