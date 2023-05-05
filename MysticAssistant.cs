@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using TMPro;
 using UnityEngine;
 
 namespace MysticAssistant
@@ -15,6 +16,7 @@ namespace MysticAssistant
     public class MysticAssistant : BaseUnityPlugin
     {
         private static readonly Type patchType = typeof(MysticAssistant);
+        private static string SHOP_CONTEXT_KEY = "mystic_assistant_shop";
 
         private void Awake()
         {
@@ -25,6 +27,48 @@ namespace MysticAssistant
 
             harmony.Patch(AccessTools.Method(typeof(Interaction_MysticShop), "Start"), postfix: new HarmonyMethod(patchType, nameof(SetUpMysticAssistant)));
             harmony.Patch(AccessTools.Method(typeof(Interaction_MysticShop), "OnSecondaryInteract"), prefix: new HarmonyMethod(patchType, nameof(PrefixSecondaryInteract)));
+            harmony.Patch(AccessTools.Method(typeof(UIItemSelectorOverlayController), "RefreshContextText"), prefix: new HarmonyMethod(patchType, nameof(ModdedRefreshContextTextForShop)));
+        }
+
+        public static bool ModdedRefreshContextTextForShop(UIItemSelectorOverlayController __instance,
+            ref ItemSelector.Params ____params,
+            ref ItemSelector.Category ____category,
+            ref TextMeshProUGUI ____buttonPromptText,
+            ref string ____addtionalText,
+            ref string ____contextString)
+        {
+            if (____params.Key != SHOP_CONTEXT_KEY)
+            {
+                return true;
+            }
+            
+            if (____params.Context == ItemSelector.Context.Sell || ____params.Context == ItemSelector.Context.Buy)
+            {
+                Func<InventoryItem.ITEM_TYPE, TraderTrackerItems> costProvider = __instance.CostProvider;
+                TraderTrackerItems traderTrackerItems = (costProvider != null) ? costProvider(____category.MostRecentItem) : null;
+                if (traderTrackerItems != null)
+                {
+                    if (____params.Context == ItemSelector.Context.Buy)
+                    {
+                        if (traderTrackerItems.SellOffset > 0)
+                        {
+                            float num = (float)traderTrackerItems.SellPrice / (float)traderTrackerItems.SellPriceActual;
+                            num *= 100f;
+                            ____addtionalText = " <color=red>+ " + Math.Round((double)num, 0) + "%</color> ";
+                        }
+                        ____buttonPromptText.text = string.Format(____contextString, InventoryItem.LocalizedName(____category.MostRecentItem) ?? "", CostFormatter.FormatCost(InventoryItem.ITEM_TYPE.GOD_TEAR, traderTrackerItems.SellPriceActual, true, false)) + ____addtionalText;
+                        return false;
+                    }
+                    ____buttonPromptText.text = string.Format(____contextString, InventoryItem.LocalizedName(____category.MostRecentItem), CostFormatter.FormatCost(InventoryItem.ITEM_TYPE.GOD_TEAR, traderTrackerItems.BuyPriceActual, true, true)) + ____addtionalText;
+                    return false;
+                }
+            }
+            else
+            {
+                ____buttonPromptText.text = string.Format(____contextString, InventoryItem.LocalizedName(____category.MostRecentItem)) + ____addtionalText;
+            }
+
+            return false;
         }
 
         public static void SetUpMysticAssistant(Interaction_MysticShop __instance)
@@ -64,12 +108,13 @@ namespace MysticAssistant
 
             UIItemSelectorOverlayController itemSelector = MonoSingleton<UIManager>.Instance.ShowItemSelector(itemsForSale, new ItemSelector.Params
             {
-                Key = "mystic_assistant_shop",
+                Key = SHOP_CONTEXT_KEY,
                 Context = ItemSelector.Context.Buy,
                 Offset = new Vector2(0f, 150f),
                 ShowEmpty = true,
                 RequiresDiscovery = false,
-                HideQuantity = true
+                HideQuantity = true,
+                ShowCoins = false
             });
             
             itemSelector.CostProvider = delegate (InventoryItem.ITEM_TYPE item)
