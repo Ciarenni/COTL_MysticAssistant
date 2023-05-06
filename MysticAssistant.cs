@@ -25,135 +25,146 @@ namespace MysticAssistant
 
             Harmony harmony = new Harmony(id: "cultofthelamb.ciarenni.mysticassistant.main");
 
-            harmony.Patch(AccessTools.Method(typeof(Interaction_MysticShop), "Start"), postfix: new HarmonyMethod(patchType, nameof(SetUpMysticAssistant)));
+            //patch the modified methods as pre- and post-fix as appropriate
+            harmony.Patch(AccessTools.Method(typeof(Interaction_MysticShop), "Start"), postfix: new HarmonyMethod(patchType, nameof(PostfixEnableMysticAssistantOnTheMysticShop)));
+            harmony.Patch(AccessTools.Method(typeof(UIItemSelectorOverlayController), "RefreshContextText"), prefix: new HarmonyMethod(patchType, nameof(PrefixRefreshContextTextForAssistant)));
+            harmony.Patch(AccessTools.Method(typeof(UIItemSelectorOverlayController), "OnItemClicked"), prefix: new HarmonyMethod(patchType, nameof(PrefixOnItemClickedForAssistant)));
             harmony.Patch(AccessTools.Method(typeof(Interaction_MysticShop), "OnSecondaryInteract"), prefix: new HarmonyMethod(patchType, nameof(PrefixSecondaryInteract)));
-            harmony.Patch(AccessTools.Method(typeof(UIItemSelectorOverlayController), "RefreshContextText"), prefix: new HarmonyMethod(patchType, nameof(ModdedRefreshContextTextForShop)));
-            harmony.Patch(AccessTools.Method(typeof(UIItemSelectorOverlayController), "OnItemClicked"), prefix: new HarmonyMethod(patchType, nameof(ModdedOnItemClicked)));
         }
 
-        public static bool ModdedRefreshContextTextForShop(UIItemSelectorOverlayController __instance,
-            ref ItemSelector.Params ____params,
-            ref ItemSelector.Category ____category,
-            ref TextMeshProUGUI ____buttonPromptText,
-            ref string ____addtionalText,
-            ref string ____contextString)
+        public static void PostfixEnableMysticAssistantOnTheMysticShop(Interaction_MysticShop __instance)
         {
+            //tell the mystic shop that it has a secondary interaction and set up the label for it
+            __instance.HasSecondaryInteraction = true;
+            __instance.SecondaryLabel = DataManager.Instance.MysticKeeperName + "'s assistant";
+        }
+
+        public static bool PrefixRefreshContextTextForAssistant(UIItemSelectorOverlayController __instance,
+            ItemSelector.Params ____params,
+            ItemSelector.Category ____category,
+            TextMeshProUGUI ____buttonPromptText,
+            string ____addtionalText,
+            string ____contextString)
+        {
+            //check the params to see if the ItemSelector being accessed is the one added in the mod.
+            //no matter what, if the player is looking at the mod shop, we want to only run this modified method and always skip the authentic method
             if (____params.Key != SHOP_CONTEXT_KEY)
             {
                 return true;
             }
             
+            //the rest of the code in this method is taken almost verbatim from the original code.
+            //the general gist is it checks if the player is buying items or selling items (the player is buying from the assistant, so the Context is Buy)
+            //then, based on the Context, it determines the value of the item and how many the player currently has in the inventory, along with
+            //the name of the highlighted/selected item, then sets that as the label.
+            //the only changes are to use God Tears instead of the coins, and changes to variables to make it work as a prefix Harmony method
             if (____params.Context == ItemSelector.Context.Sell || ____params.Context == ItemSelector.Context.Buy)
             {
-                Func<InventoryItem.ITEM_TYPE, TraderTrackerItems> costProvider = __instance.CostProvider;
-                TraderTrackerItems traderTrackerItems = (costProvider != null) ? costProvider(____category.MostRecentItem) : null;
-                if (traderTrackerItems != null)
+                //if the UIItemSelector has a CostProvider method set up, invoke it using the most recent item highlighted/selected to get the non-inventory variant of the item 
+                TraderTrackerItems traderTrackerItems = __instance.CostProvider?.Invoke(____category.MostRecentItem);
+                //if the CostProvider isn't set up, or the non-inventory variant of the item isn't found for some reason, bail out
+                if (traderTrackerItems == null)
                 {
-                    if (____params.Context == ItemSelector.Context.Buy)
-                    {
-                        if (traderTrackerItems.SellOffset > 0)
-                        {
-                            float num = (float)traderTrackerItems.SellPrice / (float)traderTrackerItems.SellPriceActual;
-                            num *= 100f;
-                            ____addtionalText = " <color=red>+ " + Math.Round((double)num, 0) + "%</color> ";
-                        }
-                        ____buttonPromptText.text = string.Format(____contextString, InventoryItem.LocalizedName(____category.MostRecentItem) ?? "", CostFormatter.FormatCost(InventoryItem.ITEM_TYPE.GOD_TEAR, traderTrackerItems.SellPriceActual, true, false)) + ____addtionalText;
-                        return false;
-                    }
-                    ____buttonPromptText.text = string.Format(____contextString, InventoryItem.LocalizedName(____category.MostRecentItem), CostFormatter.FormatCost(InventoryItem.ITEM_TYPE.GOD_TEAR, traderTrackerItems.BuyPriceActual, true, true)) + ____addtionalText;
                     return false;
                 }
+
+                if (____params.Context == ItemSelector.Context.Buy)
+                {
+                    //if the item has an offset, calculate the % of the base sell price compared to the actual (base + offset), store it in _additionalText
+                    if (traderTrackerItems.SellOffset > 0)
+                    {
+                        float num = (float)traderTrackerItems.SellPrice / (float)traderTrackerItems.SellPriceActual;
+                        num *= 100f;
+                        ____addtionalText = " <color=red>+ " + Math.Round((double)num, 0) + "%</color> ";
+                    }
+                    //set up the label for the selected item using a localized string (_contextString), the localized name of the most recent item highlighted/selected,
+                    //the image of the currency item (god tear for this mod), the actual cost (along with current quantity of currency item), and sticking the _additionalText on the end
+                    ____buttonPromptText.text = string.Format(____contextString, InventoryItem.LocalizedName(____category.MostRecentItem) ?? "", CostFormatter.FormatCost(InventoryItem.ITEM_TYPE.GOD_TEAR, traderTrackerItems.SellPriceActual, true, false)) + ____addtionalText;
+                    return false;
+                }
+                ____buttonPromptText.text = string.Format(____contextString, InventoryItem.LocalizedName(____category.MostRecentItem), CostFormatter.FormatCost(InventoryItem.ITEM_TYPE.GOD_TEAR, traderTrackerItems.BuyPriceActual, true, true)) + ____addtionalText;
+                return false;
             }
             else
             {
+                //if the Context isn't Buy or Sell (such as a farm plot which has a Context of SetLabel), then set up the label with the localized name of the most recent item highlighted/selected, and stick the _additionalText on the end
                 ____buttonPromptText.text = string.Format(____contextString, InventoryItem.LocalizedName(____category.MostRecentItem)) + ____addtionalText;
             }
 
             return false;
         }
 
-        public static bool ModdedOnItemClicked(UIItemSelectorOverlayController __instance,
+        public static bool PrefixOnItemClickedForAssistant(UIItemSelectorOverlayController __instance,
             ItemSelector.Params ____params,
             GenericInventoryItem item)
         {
+            //check the params to see if the ItemSelector being accessed is the one added in the mod.
+            //if it isnt, short circuit out and run the actual RefreshContextText method
+            //if it is, run the modified code and don't run the original
             if (____params.Key != SHOP_CONTEXT_KEY)
             {
                 return true;
             }
 
+            //get the MethodInfo for the private method GetItemQuantity from the UIItemSelectorOverlayController,
+            //so it can be leveraged in the copied code just as it is in the original, rather than having to port MORE code into here.
+            //the method will return the quantity of the item from the UIItemSelector's inventory (if it has a custom one assigned, i.e. a shop), or the player's inventory otherwise.
             MethodInfo getItemQuantity = AccessTools.Method(typeof(UIItemSelectorOverlayController), "GetItemQuantity");
-            Console.WriteLine(getItemQuantity.ToString());
-            var temp = (int)getItemQuantity.Invoke(__instance, new object[] { item.Type }) > 0;
-            Console.WriteLine("quantity gt 0: " + temp);
 
+            //the rest of the code in this method is taken almost verbatim from the original code.
+            //the only changes are to use God Tears instead of the coins, and changes to variables to make it work as a prefix Harmony method
             if (____params.Context == ItemSelector.Context.SetLabel)
             {
+                //this context is used for an item selector that is not meant to be a shop, such as choosing what seeds to plant at a farm plot
+                //which means it doesn't need to check to see if it exists in the player's inventory
+                //i.e. if you use a farm plot and have 0 pumpkin seeds, pumpkin seeds will still be displayed as an option,
+                //but with a quantity label of 0 and unable to be chosen
                 Choose();
                 return false;
             }
-            
+
+            //if the item has a quantity greater than 0 in whichever inventory it is in, the player's or the UIItemSelector's
+            //get the quantity of the item in either the UIItemSelector's inventory (if it has one set)
             if ((int)getItemQuantity.Invoke(__instance, new object[] { item.Type }) > 0)
             {
+                //if the context is NOT Buy, allow the the player to pick it, then bail
                 if (____params.Context != ItemSelector.Context.Buy)
                 {
                     Choose();
                     return false;
                 }
+                //at this point, the Context can only be Buy, so we need to get the non-inventory variant of the item so we can get it's actual (base + offset) cost
                 TraderTrackerItems traderTrackerItems = __instance.CostProvider?.Invoke(item.Type);
                 if (traderTrackerItems != null && Inventory.GetItemQuantity(InventoryItem.ITEM_TYPE.GOD_TEAR) >= traderTrackerItems.SellPriceActual)
                 {
+                    //if the player has enough of the currency to cover the item's cost, allow them to pick it, then bail
                     Choose();
                     return false;
                 }
             }
+            //if the item has not been successfully bought or sold, whichever is appropriate, shake the item in the view and play a noise
             item.Shake();
             AudioManager.Instance.PlayOneShot("event:/ui/negative_feedback");
+
+            //im personally not a fan of local functions, but it gets the job done
             void Choose()
             {
+                //invoke the OnItemChosen delegate for the UIItemSelector, which can have actions added to it in implementations of the UIItemSelector,
+                //as seen in PrefixSecondaryInteract where i set up the shopItemSelector
                 __instance.OnItemChosen?.Invoke(item.Type);
                 if (____params.HideOnSelection)
                 {
+                    //if the UIItemSelector should be hidden on closing, like a farm plot, hide it after selection
                     __instance.Hide();
                 }
                 else
                 {
+                    //otherwise, update the quantities (which will also update the label)
                     __instance.UpdateQuantities();
                 }
             }
 
-            //UIItemSelectorOverlayController.//<> c__DisplayClass44_0 CS$<> 8__locals1;
-            //CS$<> 8__locals1.<> 4__this = this;
-            //CS$<> 8__locals1.item = item;
-            //if (this._context == ItemSelector.Context.SetLabel)
-            //{
-            //    this.< OnItemClicked > g__Choose | 44_0(ref CS$<> 8__locals1);
-            //    return;
-            //}
-            //if (this.GetItemQuantity(CS$<> 8__locals1.item.Type) > 0)
-            //{
-            //    if (this._context != ItemSelector.Context.Buy)
-            //    {
-            //        this.< OnItemClicked > g__Choose | 44_0(ref CS$<> 8__locals1);
-            //        return;
-            //    }
-            //    Func<InventoryItem.ITEM_TYPE, TraderTrackerItems> costProvider = this.CostProvider;
-            //    TraderTrackerItems traderTrackerItems = (costProvider != null) ? costProvider(CS$<> 8__locals1.item.Type) : null;
-            //    if (traderTrackerItems != null && Inventory.GetItemQuantity(InventoryItem.ITEM_TYPE.BLACK_GOLD) >= traderTrackerItems.SellPriceActual)
-            //    {
-            //        this.< OnItemClicked > g__Choose | 44_0(ref CS$<> 8__locals1);
-            //        return;
-            //    }
-            //}
-            //CS$<> 8__locals1.item.Shake();
-            //AudioManager.Instance.PlayOneShot("event:/ui/negative_feedback");
-
             return false;
-        }
-
-        public static void SetUpMysticAssistant(Interaction_MysticShop __instance)
-        {
-            __instance.SecondaryLabel = "Mod label";
-            __instance.HasSecondaryInteraction = true;   
         }
 
         public static void PrefixSecondaryInteract(Interaction_MysticShop __instance, StateMachine state)
@@ -166,7 +177,7 @@ namespace MysticAssistant
 
             TraderTrackerItems godTearTTI = new TraderTrackerItems
             {
-                //119
+                //item_type id 119
                 itemForTrade = InventoryItem.ITEM_TYPE.GOD_TEAR,
                 BuyPrice = 1,
                 BuyOffset = 0,
@@ -175,17 +186,18 @@ namespace MysticAssistant
                 LastDayChecked = TimeManager.CurrentDay
             };
 
+            //get the list of items, as a shop item type, that will be available to buy from the mod shop
             List<TraderTrackerItems> shopList = GetMysticAssistantShopList();
-            TraderTracker TraderInfo = new TraderTracker();
-            TraderInfo.itemsToTrade = shopList;
 
+            //using the list of shop items, get a list of the inventory version of the same items
             var itemsForSale = new List<InventoryItem>();
             foreach(var item in shopList)
             {
                 itemsForSale.Add(new InventoryItem(item.itemForTrade));
             }
 
-            UIItemSelectorOverlayController itemSelector = MonoSingleton<UIManager>.Instance.ShowItemSelector(itemsForSale, new ItemSelector.Params
+            //set up the item selector to be our shop, mimicing what the seed shop does
+            UIItemSelectorOverlayController shopItemSelector = MonoSingleton<UIManager>.Instance.ShowItemSelector(itemsForSale, new ItemSelector.Params
             {
                 Key = SHOP_CONTEXT_KEY,
                 Context = ItemSelector.Context.Buy,
@@ -196,46 +208,52 @@ namespace MysticAssistant
                 ShowCoins = false
             });
             
-            itemSelector.CostProvider = delegate (InventoryItem.ITEM_TYPE item)
+            //set up a delegate that returns the cost of the item based on the item_type passed to it
+            shopItemSelector.CostProvider = delegate (InventoryItem.ITEM_TYPE item)
             {
-                Console.WriteLine("Attempting to get cost");
-                return GetTradeItem(TraderInfo, item);
+                return GetTradeItem(shopList, item);
             };
 
-            UIItemSelectorOverlayController itemSelector4 = itemSelector;
-            itemSelector4.OnItemChosen = (Action<InventoryItem.ITEM_TYPE>)Delegate.Combine(itemSelector4.OnItemChosen, new Action<InventoryItem.ITEM_TYPE>(delegate (InventoryItem.ITEM_TYPE chosenItem)
-            {
-                if (GetTradeItem(TraderInfo, chosenItem) != null && Inventory.GetItemQuantity(InventoryItem.ITEM_TYPE.GOD_TEAR) >= GetTradeItem(TraderInfo, chosenItem).SellPriceActual)
+            //set up what happens when the player confirms the item from the selector. combine the current actions OnItemChosen is doing with the new behaviour we want
+            shopItemSelector.OnItemChosen = (Action<InventoryItem.ITEM_TYPE>)Delegate.Combine(
+                shopItemSelector.OnItemChosen,
+                new Action<InventoryItem.ITEM_TYPE>(delegate (InventoryItem.ITEM_TYPE chosenItem)
                 {
-                    TraderTrackerItems tradeItem = GetTradeItem(TraderInfo, chosenItem);
+                    //get the non-inventory of the chosen item
+                    TraderTrackerItems tradeItem = GetTradeItem(shopList, chosenItem);
+                    //deduct the item's cost from the player's inventory of the currency
                     Inventory.ChangeItemQuantity((int)godTearTTI.itemForTrade, -tradeItem.SellPriceActual, 0);
+                    //add 1 of the chosen item to the player's inventory
                     Inventory.ChangeItemQuantity((int)chosenItem, 1, 0);
+                    //play a pop sound
                     AudioManager.Instance.PlayOneShot("event:/followers/pop_in", __instance.gameObject);
+                    //create a god tear that zips to the mystic shop, to look nice
                     ResourceCustomTarget.Create(__instance.gameObject, PlayerFarming.Instance.transform.position, InventoryItem.ITEM_TYPE.GOD_TEAR, delegate () { }, true);
-                }
-                else
+                }));
+
+            //on canceling out of the shop, show the HUD again
+            shopItemSelector.OnCancel = (Action)Delegate.Combine(
+                shopItemSelector.OnCancel,
+                new Action(delegate ()
                 {
-                    AudioManager.Instance.PlayOneShot("event:/ui/negative_feedback");
-                }
-            }));
+                    HUD_Manager.Instance.Show(0, false);
+                }));
 
-            UIItemSelectorOverlayController itemSelector2 = itemSelector;
-            itemSelector2.OnCancel = (Action)Delegate.Combine(itemSelector2.OnCancel, new Action(delegate ()
-            {
-                HUD_Manager.Instance.Show(0, false);
-            }));
-
-            UIItemSelectorOverlayController itemSelector3 = itemSelector;
-            itemSelector3.OnHidden = (Action)Delegate.Combine(itemSelector3.OnHidden, new Action(delegate ()
-            {
-                state.CURRENT_STATE = StateMachine.State.Idle;
-                itemSelector = null;
-            }));
+            //on hiding the shop, set the player's state back to idle so they can once again controller the lamb
+            shopItemSelector.OnHidden = (Action)Delegate.Combine(
+                shopItemSelector.OnHidden,
+                new Action(delegate ()
+                {
+                    state.CURRENT_STATE = StateMachine.State.Idle;
+                    shopItemSelector = null;
+                }));
         }
 
-        private static TraderTrackerItems GetTradeItem(TraderTracker traderInfo, InventoryItem.ITEM_TYPE item)
+        //this is pulled from the seed shop's interaction functionality, as the authentic mystic shop does not include it and it's needed for the mod
+        //given a list of non-inventory items and an item_type, return the non-inventory item of that type from the provided list
+        private static TraderTrackerItems GetTradeItem(List<TraderTrackerItems> listOfItems, InventoryItem.ITEM_TYPE item)
         {
-            foreach (TraderTrackerItems traderTrackerItems in traderInfo.itemsToTrade)
+            foreach (TraderTrackerItems traderTrackerItems in listOfItems)
             {
                 if (traderTrackerItems.itemForTrade == item)
                 {
@@ -245,22 +263,26 @@ namespace MysticAssistant
             return null;
         }
 
+        //create the non-inventory item objects for everything that will be for sale in the mod shop
+        //prices are in terms of god tears
         private static List<TraderTrackerItems> GetMysticAssistantShopList()
         {
             TraderTrackerItems necklaceDarkTTI = new TraderTrackerItems
             {
-                //124
+                //item_type id 124
                 itemForTrade = InventoryItem.ITEM_TYPE.Necklace_Dark,
                 BuyPrice = 1,
                 BuyOffset = 0,
                 SellPrice = 1,
                 SellOffset = 0,
+                //i dont think this LastDayChecked is actually doing anything in this instance.
+                //i believe its used for the offering chest in camp (where the player can sell items) to adjust prices based on last time an item was sold
                 LastDayChecked = TimeManager.CurrentDay
             };
 
             TraderTrackerItems necklaceLightTTI = new TraderTrackerItems
             {
-                //125
+                //item_type id 125
                 itemForTrade = InventoryItem.ITEM_TYPE.Necklace_Light,
                 BuyPrice = 1,
                 BuyOffset = 0,
@@ -271,7 +293,7 @@ namespace MysticAssistant
 
             TraderTrackerItems necklaceGoldSkullTTI = new TraderTrackerItems
             {
-                //127
+                //item_type id 127
                 itemForTrade = InventoryItem.ITEM_TYPE.Necklace_Gold_Skull,
                 BuyPrice = 1,
                 BuyOffset = 0,
@@ -282,7 +304,7 @@ namespace MysticAssistant
 
             TraderTrackerItems necklaceDemonicTTI = new TraderTrackerItems
             {
-                //123
+                //item_type id 123
                 itemForTrade = InventoryItem.ITEM_TYPE.Necklace_Demonic,
                 BuyPrice = 1,
                 BuyOffset = 0,
@@ -293,7 +315,7 @@ namespace MysticAssistant
 
             TraderTrackerItems necklaceLoyaltyTTI = new TraderTrackerItems
             {
-                //122
+                //item_type id 122
                 itemForTrade = InventoryItem.ITEM_TYPE.Necklace_Loyalty,
                 BuyPrice = 1,
                 BuyOffset = 0,
@@ -304,7 +326,7 @@ namespace MysticAssistant
 
             TraderTrackerItems necklaceMissionaryTTI = new TraderTrackerItems
             {
-                //126
+                //item_type id 126
                 itemForTrade = InventoryItem.ITEM_TYPE.Necklace_Missionary,
                 BuyPrice = 1,
                 BuyOffset = 0,
