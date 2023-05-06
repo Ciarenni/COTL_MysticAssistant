@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace MysticAssistant
 {
-    [BepInPlugin(PluginInfo.PLUGIN_GUID, PluginInfo.PLUGIN_NAME, PluginInfo.PLUGIN_VERSION)]
+    [BepInPlugin("ciarenni.cultofthelamb.mysticassistant", "Mystic Assistant", "1.0.0")]
     public class MysticAssistant : BaseUnityPlugin
     {
         private static readonly Type patchType = typeof(MysticAssistant);
@@ -23,7 +23,7 @@ namespace MysticAssistant
             // Plugin startup logic
             Logger.LogInfo($"Plugin {PluginInfo.PLUGIN_GUID} is loaded!");
 
-            Harmony harmony = new Harmony(id: "cultofthelamb.ciarenni.mysticassistant.main");
+            Harmony harmony = new Harmony(id: "ciarenni.cultofthelamb.mysticassistant");
 
             //patch the modified methods as pre- and post-fix as appropriate
             harmony.Patch(AccessTools.Method(typeof(Interaction_MysticShop), "Start"), postfix: new HarmonyMethod(patchType, nameof(PostfixEnableMysticAssistantOnTheMysticShop)));
