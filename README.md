@@ -21,6 +21,9 @@ Unsure of what the assistant gets out of the deal, but not wanting to turn down 
 
 1. Install BepInEx for Cult of the Lamb. There's a couple ways to go about this, but either way, make sure you get BepInEx version 5.4, not version 6.
     1. You can follow [this guide](https://pebloop.notion.site/How-to-install-a-mod-aec545cc219e48e29b3d3587ca1cf83e) that is specific to Cult of the Lamb.
+    
+    or
+    
     2. You can find their [GitHub page here](https://github.com/BepInEx/BepInEx/releases), and their [installation guide here](https://docs.bepinex.dev/articles/user_guide/installation/index.html#where-to-download-bepinex).
 2. In the game's root folder (\steamapps\common\Cult of the Lamb), go to the BepInEx folder.
 3. If the "plugin" folder does not exist, launch the game so that BepInEx can create the stuff it needs to work in its folder.
