@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace MysticAssistant
 {
-    [BepInPlugin("ciarenni.cultofthelamb.mysticassistant", "Mystic Assistant", "1.0.0")]
+    [BepInPlugin("ciarenni.cultofthelamb.mysticassistant", "Mystic Assistant", "1.0.1")]
     public class MysticAssistant : BaseUnityPlugin
     {
         private static readonly Type patchType = typeof(MysticAssistant);
@@ -21,7 +21,7 @@ namespace MysticAssistant
         private void Awake()
         {
             // Plugin startup logic
-            Logger.LogInfo($"Plugin {PluginInfo.PLUGIN_GUID} is loaded!");
+            Logger.LogInfo($"Plugin ciarenni.cultofthelamb.mysticassistant is loaded!");
 
             Harmony harmony = new Harmony(id: "ciarenni.cultofthelamb.mysticassistant");
 
@@ -52,7 +52,7 @@ namespace MysticAssistant
             {
                 return true;
             }
-            
+
             //the rest of the code in this method is taken almost verbatim from the original code.
             //the general gist is it checks if the player is buying items or selling items (the player is buying from the assistant, so the Context is Buy)
             //then, based on the Context, it determines the value of the item and how many the player currently has in the inventory, along with
@@ -169,6 +169,17 @@ namespace MysticAssistant
 
         public static void PrefixSecondaryInteract(Interaction_MysticShop __instance, StateMachine state)
         {
+            //for reasons unknown to me, even though this method is specified to be prefixed to Interaction_MysticShop,
+            //it is being added to other interactions as well. it was reported that the shop popped up when using the
+            //secondary interact on beds (specifically grand shelters), the town shrine, both of which i was able to replicate,
+            //and on the fertilizer box, which i was not able to replicate.
+            //but this check should fix all of those anyway
+            if (__instance.GetType() != typeof(Interaction_MysticShop))
+            {
+                Console.WriteLine("instance is not type of Interaction_MysticShop, skipping adding secondary interaction");
+                return;
+            }
+
             //disable player movement so they don't move while navigating the shop
             state.CURRENT_STATE = StateMachine.State.InActive;
 
@@ -191,7 +202,7 @@ namespace MysticAssistant
 
             //using the list of shop items, get a list of the inventory version of the same items
             var itemsForSale = new List<InventoryItem>();
-            foreach(var item in shopList)
+            foreach (var item in shopList)
             {
                 itemsForSale.Add(new InventoryItem(item.itemForTrade));
             }
@@ -207,7 +218,7 @@ namespace MysticAssistant
                 HideQuantity = true,
                 ShowCoins = false
             });
-            
+
             //set up a delegate that returns the cost of the item based on the item_type passed to it
             shopItemSelector.CostProvider = delegate (InventoryItem.ITEM_TYPE item)
             {
