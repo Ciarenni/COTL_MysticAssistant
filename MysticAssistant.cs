@@ -3,16 +3,16 @@ using HarmonyLib;
 using Lamb.UI;
 using MMTools;
 using src.UINavigator;
+using src.UI;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using TMPro;
 using UnityEngine;
 
 namespace MysticAssistant
 {
-    [BepInPlugin("ciarenni.cultofthelamb.mysticassistant", "Mystic Assistant", "1.0.2")]
+    [BepInPlugin("ciarenni.cultofthelamb.mysticassistant", "Mystic Assistant", "2.0.0")]
     public class MysticAssistant : BaseUnityPlugin
     {
         private static readonly Type patchType = typeof(MysticAssistant);
@@ -234,18 +234,31 @@ namespace MysticAssistant
             //set up what happens when the player confirms the item from the selector. combine the current actions OnItemChosen is doing with the new behaviour we want
             shopItemSelector.OnItemChosen = (Action<InventoryItem.ITEM_TYPE>)Delegate.Combine(
                 shopItemSelector.OnItemChosen,
-                new Action<InventoryItem.ITEM_TYPE>(delegate (InventoryItem.ITEM_TYPE chosenItem)
+                new Action<InventoryItem.ITEM_TYPE>(delegate (InventoryItem.ITEM_TYPE chosenItemType)
                 {
                     //get the non-inventory of the chosen item
-                    TraderTrackerItems tradeItem = GetTradeItem(shopList, chosenItem);
-                    //deduct the item's cost from the player's inventory of the currency
-                    Inventory.ChangeItemQuantity((int)godTearTTI.itemForTrade, -tradeItem.SellPriceActual, 0);
-                    //add 1 of the chosen item to the player's inventory
-                    Inventory.ChangeItemQuantity((int)chosenItem, 1, 0);
-                    //play a pop sound
-                    AudioManager.Instance.PlayOneShot("event:/followers/pop_in", __instance.gameObject);
-                    //create a god tear that zips to the mystic shop, to look nice
-                    ResourceCustomTarget.Create(__instance.gameObject, playerFarming.transform.position, InventoryItem.ITEM_TYPE.GOD_TEAR, delegate () { }, true);
+                    TraderTrackerItems tradeItem = GetTradeItem(shopList, chosenItemType);
+                    //check to see if the user is attempting to buy something that might not be needed
+                    if (DisplayBoughtQuantityWarning(tradeItem))
+                    {
+                        UIMenuConfirmationWindow uimenuConfirmationWindow = shopItemSelector.Push<UIMenuConfirmationWindow>(MonoSingleton<UIManager>.Instance.ConfirmationWindowTemplate);
+                        uimenuConfirmationWindow.Configure("Confirm purchase", "You have already bought the maximum legitimate amount of this item. Are you sure you want to buy more?", false);
+                        uimenuConfirmationWindow.OnConfirm = (Action)Delegate.Combine(uimenuConfirmationWindow.OnConfirm, new Action(delegate ()
+                        {
+                            //if they acknowledge the warning, proceed to the purchase
+                            GivePlayerBoughtItem(tradeItem, chosenItemType);
+                        }));
+                        uimenuConfirmationWindow.OnCancel = (Action)Delegate.Combine(uimenuConfirmationWindow.OnCancel, new Action(delegate ()
+                        {
+                            //if they decline and back out, dont proceed to the purchase
+                            return;
+                        }));
+                    }
+                    else
+                    {
+                        //if no warning needs to be shown, just proceed to the purchase
+                        GivePlayerBoughtItem(tradeItem, chosenItemType);
+                    }
                 }));
 
             //on canceling out of the shop, show the HUD again
@@ -272,20 +285,122 @@ namespace MysticAssistant
                     state.CURRENT_STATE = StateMachine.State.Idle;
                     shopItemSelector = null;
                 }));
+
+            //making this a local function to limit what all needs to be passed to it
+            void GivePlayerBoughtItem(TraderTrackerItems boughtItem, InventoryItem.ITEM_TYPE boughtItemType)
+            {
+                //deduct the item's cost from the player's inventory of the currency
+                Inventory.ChangeItemQuantity((int)godTearTTI.itemForTrade, -boughtItem.SellPriceActual, 0);
+                //add 1 of the chosen item to the player's inventory
+                Inventory.ChangeItemQuantity((int)boughtItemType, 1, 0);
+
+                //set or adjust flags appropriately based on purchased item
+                switch (boughtItemType)
+                {
+                    case InventoryItem.ITEM_TYPE.Necklace_Dark:
+                        DataManager.Instance.HasAymSkin = true;
+                        break;
+                    case InventoryItem.ITEM_TYPE.Necklace_Light:
+                        DataManager.Instance.HasBaalSkin = true;
+                        break;
+                    case InventoryItem.ITEM_TYPE.CRYSTAL_DOCTRINE_STONE:
+                        DataManager.Instance.CrystalDoctrinesReceivedFromMysticShop++;
+                        //on the off chance that someone is using this mod to get their first "forgotten doctrine" stone, we need to make sure that system is unlocked for them.
+                        //im just assuming this works, i dont know how to edit my existing save to test it, and i dont have one laying around in this very specific state.
+                        //so hopefully i read the code right and this does what i think it does!
+                        UpgradeSystem.UnlockAbility(UpgradeSystem.Type.Ritual_CrystalDoctrine);
+                        break;
+                    case InventoryItem.ITEM_TYPE.TALISMAN:
+                        //TODO figure out how to correctly adjust the number of talisman pieces the player currently has,
+                        //so that can be set to 0 (after a purchase, because that always rounds up to the next full talisman)
+
+                        //NOTE: look at Inventory.KeyPieces++ in Interaction_KeyPiece
+                        DataManager.Instance.TalismanPiecesReceivedFromMysticShop += GetTalismanPiecesRemainingToNearestWholeTalisman();
+                        break;
+                    //TODO add the stuff to allow players to buy the mystic shop follower skins
+                }
+                //play a pop sound
+                AudioManager.Instance.PlayOneShot("event:/followers/pop_in", __instance.gameObject);
+                //create a god tear that zips to the mystic shop, to look nice
+                ResourceCustomTarget.Create(__instance.gameObject, PlayerFarming.Instance.transform.position, InventoryItem.ITEM_TYPE.GOD_TEAR, delegate () { }, true);
+
+                //update the item selector label
+                AccessTools.Method(typeof(UIItemSelectorOverlayController), "RefreshContextText").Invoke(shopItemSelector, new object[] { });
+            }
         }
 
         //this is pulled from the seed shop's interaction functionality, as the authentic mystic shop does not include it and it's needed for the mod
         //given a list of non-inventory items and an item_type, return the non-inventory item of that type from the provided list
-        private static TraderTrackerItems GetTradeItem(List<TraderTrackerItems> listOfItems, InventoryItem.ITEM_TYPE item)
+        private static TraderTrackerItems GetTradeItem(List<TraderTrackerItems> shopList, InventoryItem.ITEM_TYPE specifiedType)
         {
-            foreach (TraderTrackerItems traderTrackerItems in listOfItems)
+            //loop over all items in the shop's list
+            foreach (TraderTrackerItems shopItem in shopList)
             {
-                if (traderTrackerItems.itemForTrade == item)
+                //if the item from the list matches the specified type
+                if (shopItem.itemForTrade == specifiedType)
                 {
-                    return traderTrackerItems;
+                    //check if the requested type is of ITEM_TYPE.TALISMAN. if it is, we need to do some match for the cost
+                    if (specifiedType == InventoryItem.ITEM_TYPE.TALISMAN)
+                    {
+                        Console.WriteLine("current talisman pieces count: " + DataManager.Instance.TalismanPiecesReceivedFromMysticShop);
+                        Console.WriteLine("remaining to next full piece: " + GetTalismanPiecesRemainingToNearestWholeTalisman());
+                        shopItem.SellPrice = GetTalismanPiecesRemainingToNearestWholeTalisman();
+                    }
+
+                    return shopItem;
                 }
             }
             return null;
+        }
+
+        private static bool DisplayBoughtQuantityWarning(TraderTrackerItems chosenItem)
+        {
+            //check what the player is buying to see if they need to be warned about it
+            switch (chosenItem.itemForTrade)
+            {
+                
+                case InventoryItem.ITEM_TYPE.Necklace_Dark:
+                    if(DataManager.Instance.HasAymSkin || Inventory.GetItemQuantity(InventoryItem.ITEM_TYPE.Necklace_Dark) >= 1)
+                    {
+                        return true;
+                    }
+                    break;
+                case InventoryItem.ITEM_TYPE.Necklace_Light:
+                    if (DataManager.Instance.HasBaalSkin || Inventory.GetItemQuantity(InventoryItem.ITEM_TYPE.Necklace_Light) >= 1)
+                    {
+                        return true;
+                    }
+                    break;
+                case InventoryItem.ITEM_TYPE.CRYSTAL_DOCTRINE_STONE:
+                    if (DataManager.Instance.CrystalDoctrinesReceivedFromMysticShop >= 20)
+                    {
+                        return true;
+                    }
+                    break;
+                case InventoryItem.ITEM_TYPE.TALISMAN:
+                    if ((DataManager.Instance.TalismanPiecesReceivedFromMysticShop + GetTalismanPiecesRemainingToNearestWholeTalisman()) > 12)
+                    {
+                        return true;
+                    }
+                    break;
+                default:
+                    //not one of the limited items
+                    return false;
+            }
+
+            return false;
+        }
+
+        private static int GetTalismanPiecesRemainingToNearestWholeTalisman()
+        {
+            //im doing something different with the talisman pieces from the mystic shop. normally, you get a talisman PIECE from the mystic shop.
+            //this is a KEY_PIECE in the ITEM_TYPE enumeration. however, there's a whole bunch of stuff tied to rewarding a player with a talisman piece.
+            //theres animations that play, special effects, etc. im just trying to make this thing work, and am choosing to operate on the assumption that
+            //the player knows how the talisman pieces work by now. so instead of doing the whole bit, we're just using math to figure out how many talisman pieces
+            //the player needs to get the next whole one from the shop, and having them buy specifically that amount. the save file flag is correctly incremented in the
+            //local function GivePlayerBoughtItem() in PrefixSecondaryInteract(), and the adjustment of the cost is handled in GetTradeItem().
+            //the combination of the 2 ensures that the player is still spending 1 god tear per talisman piece (as intended by the devs), 
+            return 4 - DataManager.Instance.TalismanPiecesReceivedFromMysticShop % 4;
         }
 
         //create the non-inventory item objects for everything that will be for sale in the mod shop
@@ -360,15 +475,42 @@ namespace MysticAssistant
                 LastDayChecked = TimeManager.CurrentDay
             };
 
-            return new List<TraderTrackerItems>
+            TraderTrackerItems crystalDoctrineStoneTTI = new TraderTrackerItems
             {
-                necklaceDarkTTI,
-                necklaceLightTTI,
+                //item_type id 121
+                itemForTrade = InventoryItem.ITEM_TYPE.CRYSTAL_DOCTRINE_STONE,
+                BuyPrice = 1,
+                BuyOffset = 0,
+                SellPrice = 1,
+                SellOffset = 0,
+                LastDayChecked = TimeManager.CurrentDay
+            };
+
+            TraderTrackerItems talismanPieceTTI = new TraderTrackerItems
+            {
+                //item_type id 114
+                itemForTrade = InventoryItem.ITEM_TYPE.TALISMAN,
+                BuyPrice = 1,
+                BuyOffset = 0,
+                SellPrice = 1,
+                SellOffset = 0,
+                LastDayChecked = TimeManager.CurrentDay
+            };
+
+            var ttiList =  new List<TraderTrackerItems>
+            {
                 necklaceGoldSkullTTI,
                 necklaceDemonicTTI,
                 necklaceLoyaltyTTI,
-                necklaceMissionaryTTI
+                necklaceMissionaryTTI,
+                necklaceLightTTI,
+                necklaceDarkTTI,
+                crystalDoctrineStoneTTI,
+                talismanPieceTTI
             };
+
+            return ttiList;
+
         }
     }
 }
