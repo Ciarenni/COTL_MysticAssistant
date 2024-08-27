@@ -1,8 +1,8 @@
 ﻿using BepInEx;
 using HarmonyLib;
 using Lamb.UI;
-using Lamb.UI.MainMenu;
-using src.UI;
+using MMTools;
+using src.UINavigator;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace MysticAssistant
 {
-    [BepInPlugin("ciarenni.cultofthelamb.mysticassistant", "Mystic Assistant", "1.0.1")]
+    [BepInPlugin("ciarenni.cultofthelamb.mysticassistant", "Mystic Assistant", "1.0.2")]
     public class MysticAssistant : BaseUnityPlugin
     {
         private static readonly Type patchType = typeof(MysticAssistant);
@@ -180,9 +180,6 @@ namespace MysticAssistant
                 return;
             }
 
-            //disable player movement so they don't move while navigating the shop
-            state.CURRENT_STATE = StateMachine.State.InActive;
-
             //hide the HUD because it looks nice that way
             HUD_Manager.Instance.Hide(false, 0, false);
 
@@ -207,8 +204,12 @@ namespace MysticAssistant
                 itemsForSale.Add(new InventoryItem(item.itemForTrade));
             }
 
+            PlayerFarming playerFarming = state.GetComponent<PlayerFarming>();
+            PlayerFarming.SetStateForAllPlayers(StateMachine.State.InActive, false, null);
+            playerFarming.GoToAndStop(playerFarming.transform.position, playerFarming.LookToObject, false, false, null, 20f, true, null, true, true, true, true, null);
+
             //set up the item selector to be our shop, mimicing what the seed shop does
-            UIItemSelectorOverlayController shopItemSelector = MonoSingleton<UIManager>.Instance.ShowItemSelector(itemsForSale, new ItemSelector.Params
+            UIItemSelectorOverlayController shopItemSelector = MonoSingleton<UIManager>.Instance.ShowItemSelector(playerFarming, itemsForSale, new ItemSelector.Params
             {
                 Key = SHOP_CONTEXT_KEY,
                 Context = ItemSelector.Context.Buy,
@@ -216,8 +217,13 @@ namespace MysticAssistant
                 ShowEmpty = true,
                 RequiresDiscovery = false,
                 HideQuantity = true,
-                ShowCoins = false
+                ShowCoins = false,
+                AllowInputOnlyFromPlayer = playerFarming
             });
+            if (__instance.InputOnlyFromInteractingPlayer)
+            {
+                MonoSingleton<UINavigatorNew>.Instance.AllowInputOnlyFromPlayer = playerFarming;
+            }
 
             //set up a delegate that returns the cost of the item based on the item_type passed to it
             shopItemSelector.CostProvider = delegate (InventoryItem.ITEM_TYPE item)
@@ -239,7 +245,7 @@ namespace MysticAssistant
                     //play a pop sound
                     AudioManager.Instance.PlayOneShot("event:/followers/pop_in", __instance.gameObject);
                     //create a god tear that zips to the mystic shop, to look nice
-                    ResourceCustomTarget.Create(__instance.gameObject, PlayerFarming.Instance.transform.position, InventoryItem.ITEM_TYPE.GOD_TEAR, delegate () { }, true);
+                    ResourceCustomTarget.Create(__instance.gameObject, playerFarming.transform.position, InventoryItem.ITEM_TYPE.GOD_TEAR, delegate () { }, true);
                 }));
 
             //on canceling out of the shop, show the HUD again
@@ -255,6 +261,14 @@ namespace MysticAssistant
                 shopItemSelector.OnHidden,
                 new Action(delegate ()
                 {
+                    foreach (PlayerFarming playerFarming in PlayerFarming.players)
+                    {
+                        if (playerFarming.GoToAndStopping)
+                        {
+                            playerFarming.AbortGoTo(true);
+                        }
+                    }
+                    PlayerFarming.SetStateForAllPlayers((LetterBox.IsPlaying || MMConversation.isPlaying) ? StateMachine.State.InActive : StateMachine.State.Idle, false, null);
                     state.CURRENT_STATE = StateMachine.State.Idle;
                     shopItemSelector = null;
                 }));
