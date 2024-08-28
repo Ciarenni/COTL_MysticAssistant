@@ -322,7 +322,7 @@ namespace MysticAssistant
                 //play a pop sound
                 AudioManager.Instance.PlayOneShot("event:/followers/pop_in", __instance.gameObject);
                 //create a god tear that zips to the mystic shop, to look nice
-                ResourceCustomTarget.Create(__instance.gameObject, PlayerFarming.Instance.transform.position, InventoryItem.ITEM_TYPE.GOD_TEAR, delegate () { }, true);
+                ResourceCustomTarget.Create(__instance.gameObject, playerFarming.transform.position, InventoryItem.ITEM_TYPE.GOD_TEAR, delegate () { }, true);
 
                 //update the item selector label
                 AccessTools.Method(typeof(UIItemSelectorOverlayController), "RefreshContextText").Invoke(shopItemSelector, new object[] { });
