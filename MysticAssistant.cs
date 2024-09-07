@@ -2,8 +2,9 @@
 using HarmonyLib;
 using Lamb.UI;
 using MMTools;
-using src.UINavigator;
+using src.Extensions;
 using src.UI;
+using src.UINavigator;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -37,6 +38,8 @@ namespace MysticAssistant
             //tell the mystic shop that it has a secondary interaction and set up the label for it
             __instance.HasSecondaryInteraction = true;
             __instance.SecondaryLabel = DataManager.Instance.MysticKeeperName + "'s assistant";
+
+            Console.WriteLine("Mystic Assistant postfix applied to MysticShop");
         }
 
         public static bool PrefixRefreshContextTextForAssistant(UIItemSelectorOverlayController __instance,
@@ -46,10 +49,13 @@ namespace MysticAssistant
             string ____addtionalText,
             string ____contextString)
         {
+            Console.WriteLine("prefix for context text starting");
+
             //check the params to see if the ItemSelector being accessed is the one added in the mod.
             //no matter what, if the player is looking at the mod shop, we want to only run this modified method and always skip the authentic method
             if (____params.Key != SHOP_CONTEXT_KEY)
             {
+                Console.WriteLine("interaction is not the mystic shop, skipping");
                 return true;
             }
 
@@ -91,6 +97,7 @@ namespace MysticAssistant
                 ____buttonPromptText.text = string.Format(____contextString, InventoryItem.LocalizedName(____category.MostRecentItem)) + ____addtionalText;
             }
 
+            Console.WriteLine("prefix for context text ending");
             return false;
         }
 
@@ -167,8 +174,13 @@ namespace MysticAssistant
             return false;
         }
 
-        public static void PrefixSecondaryInteract(Interaction_MysticShop __instance, StateMachine state)
+        public static void PrefixSecondaryInteract(Interaction_MysticShop __instance,/* Interaction_KeyPiece ____keyPiecePrefab, Transform ____godTearTarget,*/ StateMachine state)
         {
+            Console.WriteLine("mystic assistant secondary action applied to mystic shop");
+            //Interaction_KeyPiece ____keyPiecePrefab = Traverse.Create(typeof(Interaction_MysticShop)).Field("_keyPiecePrefab").GetValue() as Interaction_KeyPiece;
+            bool boughtKeyPiece = false;
+            //Transform ____godTearTarget = Traverse.Create(typeof(Interaction_MysticShop)).Field("_godTearTarget").GetValue() as Transform;
+
             //for reasons unknown to me, even though this method is specified to be prefixed to Interaction_MysticShop,
             //it is being added to other interactions as well. it was reported that the shop popped up when using the
             //secondary interact on beds (specifically grand shelters), the town shrine, both of which i was able to replicate,
@@ -274,16 +286,48 @@ namespace MysticAssistant
                 shopItemSelector.OnHidden,
                 new Action(delegate ()
                 {
-                    foreach (PlayerFarming playerFarming in PlayerFarming.players)
+                    //if the player bought a talisman fragment, we want to show the talisman fragment UI of adding the pieces together, so check if we need to show that
+                    if (boughtKeyPiece)
                     {
-                        if (playerFarming.GoToAndStopping)
+                        //im not entirely sure why i need to set the state to inactive here when the player should still be inactive from the initial mystic assistant interaction
+                        //but if i dont, it allows the player to move and interact with the talisman key piece screen still up.
+                        //this is especially bad because if they player does not move and hits the Accept button, they are standing right next to the Mystic Shopkeeper
+                        //and will spend a god tear to spin the wheel without realizing it.
+                        //setting the state to inactive again prevents that from happening.
+                        //speculation: because this is attached to the Interaction_MysticShop interaction, the state being changed in the actual function is what causes this.
+                        //  i have no easy way to verify this and it honestly doesn't matter because this is the cleanest, easiest solution to the problem.
+                        PlayerFarming.SetStateForAllPlayers(StateMachine.State.InActive, false, null);
+                        UIKeyScreenOverlayController keyScreenManager = MonoSingleton<UIManager>.Instance.KeyScreenTemplate.Instantiate<UIKeyScreenOverlayController>();
+                        keyScreenManager.Show();
+                        keyScreenManager.OnHidden += new Action(delegate ()
                         {
-                            playerFarming.AbortGoTo(true);
-                        }
+                            foreach (PlayerFarming playerFarming in PlayerFarming.players)
+                            {
+                                if (playerFarming.GoToAndStopping)
+                                {
+                                    playerFarming.AbortGoTo(true);
+                                }
+                            }
+                            PlayerFarming.SetStateForAllPlayers((LetterBox.IsPlaying || MMConversation.isPlaying) ? StateMachine.State.InActive : StateMachine.State.Idle, false, null);
+                            state.CURRENT_STATE = StateMachine.State.Idle;
+                            shopItemSelector = null;
+                        });
                     }
-                    PlayerFarming.SetStateForAllPlayers((LetterBox.IsPlaying || MMConversation.isPlaying) ? StateMachine.State.InActive : StateMachine.State.Idle, false, null);
-                    state.CURRENT_STATE = StateMachine.State.Idle;
-                    shopItemSelector = null;
+                    //separate (and unfortunately duplicate, ill probably move this into a method later) the code for ending the mystic assistant interaction.
+                    //this needs to be done to support the talisman key piece screen being shown when appropriate
+                    else
+                    {
+                        foreach (PlayerFarming playerFarming in PlayerFarming.players)
+                        {
+                            if (playerFarming.GoToAndStopping)
+                            {
+                                playerFarming.AbortGoTo(true);
+                            }
+                        }
+                        PlayerFarming.SetStateForAllPlayers((LetterBox.IsPlaying || MMConversation.isPlaying) ? StateMachine.State.InActive : StateMachine.State.Idle, false, null);
+                        state.CURRENT_STATE = StateMachine.State.Idle;
+                        shopItemSelector = null;
+                    }
                 }));
 
             //making this a local function to limit what all needs to be passed to it
@@ -292,7 +336,7 @@ namespace MysticAssistant
                 //deduct the item's cost from the player's inventory of the currency
                 Inventory.ChangeItemQuantity((int)godTearTTI.itemForTrade, -boughtItem.SellPriceActual, 0);
                 //add 1 of the chosen item to the player's inventory
-                Inventory.ChangeItemQuantity((int)boughtItemType, 1, 0);
+                Inventory.ChangeItemQuantity((int)boughtItemType, 1, 0);//TODO this need to be modified to not add whole talismans and whole commandment stone pieces to the inventory
 
                 //set or adjust flags appropriately based on purchased item
                 switch (boughtItemType)
@@ -314,8 +358,18 @@ namespace MysticAssistant
                         //TODO figure out how to correctly adjust the number of talisman pieces the player currently has,
                         //so that can be set to 0 (after a purchase, because that always rounds up to the next full talisman)
 
+
+                        Inventory.KeyPieces++;
+                        boughtKeyPiece = true;
+                        //TODO i think the talisman stuff is sorted now. look at doing the same for commandment stone fragments, as i think that is what the mystic actually gives
+
+                        //GiveTalismanReward(__instance, ____keyPiecePrefab);//, ____godTearTarget);
+                        
+
+
+
                         //NOTE: look at Inventory.KeyPieces++ in Interaction_KeyPiece
-                        DataManager.Instance.TalismanPiecesReceivedFromMysticShop += GetTalismanPiecesRemainingToNearestWholeTalisman();
+                        //DataManager.Instance.TalismanPiecesReceivedFromMysticShop += 1;// GetTalismanPiecesRemainingToNearestWholeTalisman();
                         break;
                     //TODO add the stuff to allow players to buy the mystic shop follower skins
                 }
@@ -327,7 +381,50 @@ namespace MysticAssistant
                 //update the item selector label
                 AccessTools.Method(typeof(UIItemSelectorOverlayController), "RefreshContextText").Invoke(shopItemSelector, new object[] { });
             }
+
+            
         }
+
+        //private static IEnumerator GiveTalismanReward(Interaction_MysticShop __instance, Interaction_KeyPiece ____keyPiecePrefab)//, Transform ____godTearTarget)
+        //{
+        //    //Inventory.KeyPieces++;
+        //    //UIKeyScreenOverlayController uikeyScreenOverlayController = MonoSingleton<UIManager>.Instance.ShowKeyScreen();
+        //    //uikeyScreenOverlayController.OnHidden = (Action)Delegate.Combine(uikeyScreenOverlayController.OnHidden, new Action(delegate ()
+        //    //{
+        //    //    if (!DataManager.Instance.HadFirstTempleKey && Inventory.TempleKeys > 0 && DataManager.Instance.TryRevealTutorialTopic(TutorialTopic.Fleeces))
+        //    //    {
+        //    //        UITutorialOverlayController uitutorialOverlayController = MonoSingleton<UIManager>.Instance.ShowTutorialOverlay(TutorialTopic.Fleeces, 0f);
+        //    //        uitutorialOverlayController.OnHidden = (Action)Delegate.Combine(uitutorialOverlayController.OnHidden, new Action(delegate ()
+        //    //        {
+        //    //            ObjectiveManager.Add(new Objectives_Custom("Objectives/GroupTitles/UnlockFleece", Objectives.CustomQuestTypes.UnlockFleece, -1, -1f), false);
+        //    //            DataManager.Instance.HadFirstTempleKey = true;
+        //    //        }));
+        //    //    }
+        //    //}));
+        //    //____keyPiecePrefab.Particles.Stop();
+        //    //yield return new WaitForSeconds(0.5f);
+        //    //____keyPiecePrefab.Image.enabled = false;
+
+
+
+
+
+
+        //    //Interaction_KeyPiece keyPiece = UnityEngine.Object.Instantiate<Interaction_KeyPiece>(____keyPiecePrefab, ____godTearTarget.position, Quaternion.identity, __instance.transform.parent);
+        //    //keyPiece.transform.localScale = Vector3.zero;
+        //    //keyPiece.transform.DOScale(Vector3.one, 2f).SetEase(Ease.OutBack);
+        //    //AudioManager.Instance.PlayOneShot("event:/Stings/Choir_Short", ____godTearTarget.position);
+        //    //GameManager.GetInstance().OnConversationNext(keyPiece.gameObject, 6f);
+        //    //yield return new WaitForSeconds(1.5f);
+        //    //keyPiece.transform.DOMove(__instance.playerFarming.transform.position + new Vector3(0f, 1f, -1f), 1f, false).SetEase(Ease.InBack);
+        //    //AudioManager.Instance.PlayOneShot("event:/player/float_follower", keyPiece.gameObject);
+        //    //yield return new WaitForSeconds(1f);
+        //    //keyPiece.OnInteract(__instance.playerFarming.state);
+        //    //DataManager.Instance.TalismanPiecesReceivedFromMysticShop++;
+        //    //yield return new WaitForSeconds(2.5f);
+        //    //UnityEngine.Object.Destroy(keyPiece.gameObject);
+        //    //keyPiece = null;
+        //}
 
         //this is pulled from the seed shop's interaction functionality, as the authentic mystic shop does not include it and it's needed for the mod
         //given a list of non-inventory items and an item_type, return the non-inventory item of that type from the provided list
@@ -340,12 +437,12 @@ namespace MysticAssistant
                 if (shopItem.itemForTrade == specifiedType)
                 {
                     //check if the requested type is of ITEM_TYPE.TALISMAN. if it is, we need to do some match for the cost
-                    if (specifiedType == InventoryItem.ITEM_TYPE.TALISMAN)
-                    {
-                        Console.WriteLine("current talisman pieces count: " + DataManager.Instance.TalismanPiecesReceivedFromMysticShop);
-                        Console.WriteLine("remaining to next full piece: " + GetTalismanPiecesRemainingToNearestWholeTalisman());
-                        shopItem.SellPrice = GetTalismanPiecesRemainingToNearestWholeTalisman();
-                    }
+                    //if (specifiedType == InventoryItem.ITEM_TYPE.TALISMAN)
+                    //{
+                    //    Console.WriteLine("current talisman pieces count: " + DataManager.Instance.TalismanPiecesReceivedFromMysticShop);
+                    //    Console.WriteLine("remaining to next full piece: " + GetTalismanPiecesRemainingToNearestWholeTalisman());
+                    //    shopItem.SellPrice = GetTalismanPiecesRemainingToNearestWholeTalisman();
+                    //}
 
                     return shopItem;
                 }
@@ -486,10 +583,21 @@ namespace MysticAssistant
                 LastDayChecked = TimeManager.CurrentDay
             };
 
-            TraderTrackerItems talismanPieceTTI = new TraderTrackerItems
+            TraderTrackerItems talismanTTI = new TraderTrackerItems
             {
                 //item_type id 114
                 itemForTrade = InventoryItem.ITEM_TYPE.TALISMAN,
+                BuyPrice = 1,
+                BuyOffset = 0,
+                SellPrice = 1,
+                SellOffset = 0,
+                LastDayChecked = TimeManager.CurrentDay
+            };
+
+            TraderTrackerItems talismanPieceTTI = new TraderTrackerItems
+            {
+                //item_type id 37
+                itemForTrade = InventoryItem.ITEM_TYPE.KEY_PIECE,
                 BuyPrice = 1,
                 BuyOffset = 0,
                 SellPrice = 1,
@@ -506,7 +614,7 @@ namespace MysticAssistant
                 necklaceLightTTI,
                 necklaceDarkTTI,
                 crystalDoctrineStoneTTI,
-                talismanPieceTTI
+                talismanTTI
             };
 
             return ttiList;
