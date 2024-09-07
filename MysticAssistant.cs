@@ -4,8 +4,10 @@ using Lamb.UI;
 using MMTools;
 using src.Extensions;
 using src.UI;
+using src.UI.Overlays.TutorialOverlay;
 using src.UINavigator;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using TMPro;
@@ -174,12 +176,11 @@ namespace MysticAssistant
             return false;
         }
 
-        public static void PrefixSecondaryInteract(Interaction_MysticShop __instance,/* Interaction_KeyPiece ____keyPiecePrefab, Transform ____godTearTarget,*/ StateMachine state)
+        public static void PrefixSecondaryInteract(Interaction_MysticShop __instance, StateMachine state)
         {
             Console.WriteLine("mystic assistant secondary action applied to mystic shop");
-            //Interaction_KeyPiece ____keyPiecePrefab = Traverse.Create(typeof(Interaction_MysticShop)).Field("_keyPiecePrefab").GetValue() as Interaction_KeyPiece;
             bool boughtKeyPiece = false;
-            //Transform ____godTearTarget = Traverse.Create(typeof(Interaction_MysticShop)).Field("_godTearTarget").GetValue() as Transform;
+            bool boughtDoctrineStone = false;
 
             //for reasons unknown to me, even though this method is specified to be prefixed to Interaction_MysticShop,
             //it is being added to other interactions as well. it was reported that the shop popped up when using the
@@ -313,6 +314,11 @@ namespace MysticAssistant
                             shopItemSelector = null;
                         });
                     }
+                    //this needs to not be an else-if block, its very possible a player would buy both a stone and a talisman
+                    else if(boughtDoctrineStone)
+                    {
+                        TryShowCrystalDoctrineTutorial();
+                    }
                     //separate (and unfortunately duplicate, ill probably move this into a method later) the code for ending the mystic assistant interaction.
                     //this needs to be done to support the talisman key piece screen being shown when appropriate
                     else
@@ -349,10 +355,7 @@ namespace MysticAssistant
                         break;
                     case InventoryItem.ITEM_TYPE.CRYSTAL_DOCTRINE_STONE:
                         DataManager.Instance.CrystalDoctrinesReceivedFromMysticShop++;
-                        //on the off chance that someone is using this mod to get their first "forgotten doctrine" stone, we need to make sure that system is unlocked for them.
-                        //im just assuming this works, i dont know how to edit my existing save to test it, and i dont have one laying around in this very specific state.
-                        //so hopefully i read the code right and this does what i think it does!
-                        UpgradeSystem.UnlockAbility(UpgradeSystem.Type.Ritual_CrystalDoctrine);
+                        boughtDoctrineStone = true;
                         break;
                     case InventoryItem.ITEM_TYPE.TALISMAN:
                         //TODO figure out how to correctly adjust the number of talisman pieces the player currently has,
@@ -383,6 +386,24 @@ namespace MysticAssistant
             }
 
             
+        }
+
+        private static void TryShowCrystalDoctrineTutorial()
+        {
+            //on the off chance that someone is using this mod to get their first "forgotten doctrine" stone, we need to make sure that system is unlocked for them.
+            //im just assuming this works, i dont know how to edit my existing save to test it, and i dont have one laying around in this very specific state.
+            //so hopefully i read the code right and this does what i think it does!
+            UpgradeSystem.UnlockAbility(UpgradeSystem.Type.Ritual_CrystalDoctrine, false);
+            if (DataManager.Instance.TryRevealTutorialTopic(TutorialTopic.CrystalDoctrine))
+            {
+                UITutorialOverlayController menu = MonoSingleton<UIManager>.Instance.ShowTutorialOverlay(TutorialTopic.CrystalDoctrine, 0f);
+                menu.Show();
+                menu.OnHidden += new Action(delegate ()
+                {
+                    UIPlayerUpgradesMenuController uiplayerUpgradesMenuController = MonoSingleton<UIManager>.Instance.PlayerUpgradesMenuTemplate.Instantiate<UIPlayerUpgradesMenuController>();
+                    uiplayerUpgradesMenuController.ShowCrystalUnlock();
+                });
+            }
         }
 
         //private static IEnumerator GiveTalismanReward(Interaction_MysticShop __instance, Interaction_KeyPiece ____keyPiecePrefab)//, Transform ____godTearTarget)
