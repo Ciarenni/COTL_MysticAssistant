@@ -40,4 +40,8 @@
       <HintPath>libs\Unity\UnityEngine.CoreModule.dll</HintPath>
     </Reference>
   </ItemGroup>
+  
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="copy &quot;bin\Debug\netstandard2.0\MysticAssistant.dll&quot; &quot;..\..\Steam\steamapps\common\Cult of the Lamb\BepInEx\plugins&quot;" />
+  </Target>
 </Project>

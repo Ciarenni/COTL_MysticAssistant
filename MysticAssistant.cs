@@ -179,9 +179,12 @@ namespace MysticAssistant
         public static void PrefixSecondaryInteract(Interaction_MysticShop __instance, StateMachine state)
         {
             Console.WriteLine("mystic assistant secondary action applied to mystic shop");
+            //track whether the player has bought a talisman piece or a doctrine stone from the shop this visit. used to determine if the associated screens should be shown
             bool boughtKeyPiece = false;
             bool boughtDoctrineStone = false;
-
+            //create a list of actions to run through when the shop is closed, such as the talisman piece adding screen or the crystal doctrine tutorial
+            List<Action> postShopActions = new List<Action>();
+            
             //for reasons unknown to me, even though this method is specified to be prefixed to Interaction_MysticShop,
             //it is being added to other interactions as well. it was reported that the shop popped up when using the
             //secondary interact on beds (specifically grand shelters), the town shrine, both of which i was able to replicate,
@@ -217,6 +220,7 @@ namespace MysticAssistant
                 itemsForSale.Add(new InventoryItem(item.itemForTrade));
             }
 
+            //set the player states to inactive so they arent running around while the shop is open
             PlayerFarming playerFarming = state.GetComponent<PlayerFarming>();
             PlayerFarming.SetStateForAllPlayers(StateMachine.State.InActive, false, null);
             playerFarming.GoToAndStop(playerFarming.transform.position, playerFarming.LookToObject, false, false, null, 20f, true, null, true, true, true, true, null);
@@ -282,99 +286,75 @@ namespace MysticAssistant
                     HUD_Manager.Instance.Show(0, false);
                 }));
 
-            //on hiding the shop, set the player's state back to idle so they can once again controller the lamb
-            shopItemSelector.OnHidden = (Action)Delegate.Combine(
-                shopItemSelector.OnHidden,
-                new Action(delegate ()
-                {
-                    //if the player bought a talisman fragment, we want to show the talisman fragment UI of adding the pieces together, so check if we need to show that
-                    if (boughtKeyPiece)
-                    {
-                        //im not entirely sure why i need to set the state to inactive here when the player should still be inactive from the initial mystic assistant interaction
-                        //but if i dont, it allows the player to move and interact with the talisman key piece screen still up.
-                        //this is especially bad because if they player does not move and hits the Accept button, they are standing right next to the Mystic Shopkeeper
-                        //and will spend a god tear to spin the wheel without realizing it.
-                        //setting the state to inactive again prevents that from happening.
-                        //speculation: because this is attached to the Interaction_MysticShop interaction, the state being changed in the actual function is what causes this.
-                        //  i have no easy way to verify this and it honestly doesn't matter because this is the cleanest, easiest solution to the problem.
-                        PlayerFarming.SetStateForAllPlayers(StateMachine.State.InActive, false, null);
-                        UIKeyScreenOverlayController keyScreenManager = MonoSingleton<UIManager>.Instance.KeyScreenTemplate.Instantiate<UIKeyScreenOverlayController>();
-                        keyScreenManager.Show();
-                        keyScreenManager.OnHidden += new Action(delegate ()
-                        {
-                            foreach (PlayerFarming playerFarming in PlayerFarming.players)
-                            {
-                                if (playerFarming.GoToAndStopping)
-                                {
-                                    playerFarming.AbortGoTo(true);
-                                }
-                            }
-                            PlayerFarming.SetStateForAllPlayers((LetterBox.IsPlaying || MMConversation.isPlaying) ? StateMachine.State.InActive : StateMachine.State.Idle, false, null);
-                            state.CURRENT_STATE = StateMachine.State.Idle;
-                            shopItemSelector = null;
-                        });
-                    }
-                    //this needs to not be an else-if block, its very possible a player would buy both a stone and a talisman
-                    else if(boughtDoctrineStone)
-                    {
-                        TryShowCrystalDoctrineTutorial();
-                    }
-                    //separate (and unfortunately duplicate, ill probably move this into a method later) the code for ending the mystic assistant interaction.
-                    //this needs to be done to support the talisman key piece screen being shown when appropriate
-                    else
-                    {
-                        foreach (PlayerFarming playerFarming in PlayerFarming.players)
-                        {
-                            if (playerFarming.GoToAndStopping)
-                            {
-                                playerFarming.AbortGoTo(true);
-                            }
-                        }
-                        PlayerFarming.SetStateForAllPlayers((LetterBox.IsPlaying || MMConversation.isPlaying) ? StateMachine.State.InActive : StateMachine.State.Idle, false, null);
-                        state.CURRENT_STATE = StateMachine.State.Idle;
-                        shopItemSelector = null;
-                    }
-                }));
+            //on hiding the shop, we need to run through any screens that might need to be shown to the player.
+            //this is done in a coroutine that will also set the player's state back to idle from inactive.
+            //setting player back to idle needs to be done in the coroutine so that it can properly wait for the post shop screens to be done displaying
+            //so that control isnt returned too early causing the player to accidentally use the primary interact on the mystic shop.
+            shopItemSelector.OnHidden += new Action(delegate ()
+            {
+                //im not entirely sure why i need to set the state to inactive here when the player should still be inactive from the initial mystic assistant interaction
+                //but if i dont, it allows the player to move and interact with the talisman key piece screen still up.
+                //this is especially bad because if they player does not move and hits the Accept button, they are standing right next to the Mystic Shopkeeper
+                //and will spend a god tear to spin the wheel without realizing it.
+                //setting the state to inactive again prevents that from happening.
+                //speculation: because this is attached to the Interaction_MysticShop interaction, the state being changed in the actual function is what causes this.
+                //  i have no easy way to verify this and it honestly doesn't matter because this is the cleanest, easiest solution to the problem.
+                PlayerFarming.SetStateForAllPlayers(StateMachine.State.InActive, false, null);
+                __instance.StartCoroutine(RunTutorialsCoroutine(postShopActions, state));
+                shopItemSelector = null;
+            });
 
             //making this a local function to limit what all needs to be passed to it
             void GivePlayerBoughtItem(TraderTrackerItems boughtItem, InventoryItem.ITEM_TYPE boughtItemType)
             {
                 //deduct the item's cost from the player's inventory of the currency
                 Inventory.ChangeItemQuantity((int)godTearTTI.itemForTrade, -boughtItem.SellPriceActual, 0);
-                //add 1 of the chosen item to the player's inventory
-                Inventory.ChangeItemQuantity((int)boughtItemType, 1, 0);//TODO this need to be modified to not add whole talismans and whole commandment stone pieces to the inventory
-
-                //set or adjust flags appropriately based on purchased item
+                
+                //add item to player's inventory/collection and set or adjust game flags as appropriate
                 switch (boughtItemType)
                 {
                     case InventoryItem.ITEM_TYPE.Necklace_Dark:
+                        Inventory.ChangeItemQuantity((int)boughtItemType, 1, 0);
                         DataManager.Instance.HasAymSkin = true;
                         break;
                     case InventoryItem.ITEM_TYPE.Necklace_Light:
+                        Inventory.ChangeItemQuantity((int)boughtItemType, 1, 0);
                         DataManager.Instance.HasBaalSkin = true;
                         break;
                     case InventoryItem.ITEM_TYPE.CRYSTAL_DOCTRINE_STONE:
+                        Inventory.ChangeItemQuantity((int)boughtItemType, 1, 0);
                         DataManager.Instance.CrystalDoctrinesReceivedFromMysticShop++;
-                        boughtDoctrineStone = true;
+                        //if the player has not bought a doctrine stone this visit, check if the tutorial needs to be shown, and add it to the post shop actions list if so
+                        if(!boughtDoctrineStone)
+                        {
+                            //on the off chance that someone is using this mod to get their first "forgotten doctrine" stone, we need to make sure that system is unlocked for them.
+                            //im just assuming this works, i dont know how to edit my existing save to test it, and i dont have one laying around in this very specific state.
+                            //so hopefully i read the code right and this does what i think it does! i tested it by inverting the check causing my save that would otherwise
+                            //skip this if block to instead trigger it. so in theory, if someone needs to see the tutorial stuff, they will.
+                            UpgradeSystem.UnlockAbility(UpgradeSystem.Type.Ritual_CrystalDoctrine, false);
+                            if (DataManager.Instance.TryRevealTutorialTopic(TutorialTopic.CrystalDoctrine))
+                            {
+                                postShopActions.Add(ShowCrystalDoctrineTutorial);
+                                postShopActions.Add(ShowCrystalDoctrineInMenu);
+                            }
+                            boughtDoctrineStone = true;
+                        }
                         break;
                     case InventoryItem.ITEM_TYPE.TALISMAN:
-                        //TODO figure out how to correctly adjust the number of talisman pieces the player currently has,
-                        //so that can be set to 0 (after a purchase, because that always rounds up to the next full talisman)
-
-
-                        Inventory.KeyPieces++;
-                        boughtKeyPiece = true;
-                        //TODO i think the talisman stuff is sorted now. look at doing the same for commandment stone fragments, as i think that is what the mystic actually gives
-
-                        //GiveTalismanReward(__instance, ____keyPiecePrefab);//, ____godTearTarget);
-                        
-
-
-
-                        //NOTE: look at Inventory.KeyPieces++ in Interaction_KeyPiece
-                        //DataManager.Instance.TalismanPiecesReceivedFromMysticShop += 1;// GetTalismanPiecesRemainingToNearestWholeTalisman();
+                        Inventory.KeyPieces++;//because the talisman pieces are not in the standard inventory, their addition needs to be handled like this.
+                        DataManager.Instance.TalismanPiecesReceivedFromMysticShop++;
+                        //if the player has not bought a talisman piece this visit, add the talisman piece being added animation to the post shop actions list
+                        if(!boughtKeyPiece)
+                        {
+                            postShopActions.Add(ShowNewTalismanPieceAnimation);
+                            boughtKeyPiece = true;
+                        }
                         break;
                     //TODO add the stuff to allow players to buy the mystic shop follower skins
+                    case InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN:
+                        int skinIndex = UnityEngine.Random.Range(0, DataManager.MysticShopKeeperSkins.Length - 1);
+                        DataManager.SetFollowerSkinUnlocked(DataManager.MysticShopKeeperSkins[skinIndex]);
+                        break;
                 }
                 //play a pop sound
                 AudioManager.Instance.PlayOneShot("event:/followers/pop_in", __instance.gameObject);
@@ -384,68 +364,52 @@ namespace MysticAssistant
                 //update the item selector label
                 AccessTools.Method(typeof(UIItemSelectorOverlayController), "RefreshContextText").Invoke(shopItemSelector, new object[] { });
             }
-
-            
         }
 
-        private static void TryShowCrystalDoctrineTutorial()
+        private static IEnumerator RunTutorialsCoroutine(List<Action> postShopActions, StateMachine state)
         {
-            //on the off chance that someone is using this mod to get their first "forgotten doctrine" stone, we need to make sure that system is unlocked for them.
-            //im just assuming this works, i dont know how to edit my existing save to test it, and i dont have one laying around in this very specific state.
-            //so hopefully i read the code right and this does what i think it does!
-            UpgradeSystem.UnlockAbility(UpgradeSystem.Type.Ritual_CrystalDoctrine, false);
-            if (DataManager.Instance.TryRevealTutorialTopic(TutorialTopic.CrystalDoctrine))
+            //loop of the list of post shop actions and invoke them, waiting for the menus from each one to be closed before advancing to the next
+            foreach(Action psa in postShopActions)
             {
-                UITutorialOverlayController menu = MonoSingleton<UIManager>.Instance.ShowTutorialOverlay(TutorialTopic.CrystalDoctrine, 0f);
-                menu.Show();
-                menu.OnHidden += new Action(delegate ()
+                psa.Invoke();
+                while (UIMenuBase.ActiveMenus.Count > 0)
                 {
-                    UIPlayerUpgradesMenuController uiplayerUpgradesMenuController = MonoSingleton<UIManager>.Instance.PlayerUpgradesMenuTemplate.Instantiate<UIPlayerUpgradesMenuController>();
-                    uiplayerUpgradesMenuController.ShowCrystalUnlock();
-                });
+                    yield return null;
+                }
             }
+
+            //returns control back to the player(s) and sets them back to idle from inactive
+            foreach (PlayerFarming playerFarming in PlayerFarming.players)
+            {
+                if (playerFarming.GoToAndStopping)
+                {
+                    playerFarming.AbortGoTo(true);
+                }
+            }
+            PlayerFarming.SetStateForAllPlayers((LetterBox.IsPlaying || MMConversation.isPlaying) ? StateMachine.State.InActive : StateMachine.State.Idle, false, null);
+            state.CURRENT_STATE = StateMachine.State.Idle;
         }
 
-        //private static IEnumerator GiveTalismanReward(Interaction_MysticShop __instance, Interaction_KeyPiece ____keyPiecePrefab)//, Transform ____godTearTarget)
-        //{
-        //    //Inventory.KeyPieces++;
-        //    //UIKeyScreenOverlayController uikeyScreenOverlayController = MonoSingleton<UIManager>.Instance.ShowKeyScreen();
-        //    //uikeyScreenOverlayController.OnHidden = (Action)Delegate.Combine(uikeyScreenOverlayController.OnHidden, new Action(delegate ()
-        //    //{
-        //    //    if (!DataManager.Instance.HadFirstTempleKey && Inventory.TempleKeys > 0 && DataManager.Instance.TryRevealTutorialTopic(TutorialTopic.Fleeces))
-        //    //    {
-        //    //        UITutorialOverlayController uitutorialOverlayController = MonoSingleton<UIManager>.Instance.ShowTutorialOverlay(TutorialTopic.Fleeces, 0f);
-        //    //        uitutorialOverlayController.OnHidden = (Action)Delegate.Combine(uitutorialOverlayController.OnHidden, new Action(delegate ()
-        //    //        {
-        //    //            ObjectiveManager.Add(new Objectives_Custom("Objectives/GroupTitles/UnlockFleece", Objectives.CustomQuestTypes.UnlockFleece, -1, -1f), false);
-        //    //            DataManager.Instance.HadFirstTempleKey = true;
-        //    //        }));
-        //    //    }
-        //    //}));
-        //    //____keyPiecePrefab.Particles.Stop();
-        //    //yield return new WaitForSeconds(0.5f);
-        //    //____keyPiecePrefab.Image.enabled = false;
+        private static void ShowCrystalDoctrineTutorial()
+        {
+            //shows the crystal doctrine tutorial pop ups
+            UITutorialOverlayController menu = MonoSingleton<UIManager>.Instance.ShowTutorialOverlay(TutorialTopic.CrystalDoctrine, 0f);
+            menu.Show();
+        }
 
+        private static void ShowCrystalDoctrineInMenu()
+        {
+            //shows where crystal doctrine upgrade are tracked in the menu
+            UIPlayerUpgradesMenuController uiplayerUpgradesMenuController = MonoSingleton<UIManager>.Instance.PlayerUpgradesMenuTemplate.Instantiate<UIPlayerUpgradesMenuController>();
+            uiplayerUpgradesMenuController.ShowCrystalUnlock();
+        }
 
-
-
-
-
-        //    //Interaction_KeyPiece keyPiece = UnityEngine.Object.Instantiate<Interaction_KeyPiece>(____keyPiecePrefab, ____godTearTarget.position, Quaternion.identity, __instance.transform.parent);
-        //    //keyPiece.transform.localScale = Vector3.zero;
-        //    //keyPiece.transform.DOScale(Vector3.one, 2f).SetEase(Ease.OutBack);
-        //    //AudioManager.Instance.PlayOneShot("event:/Stings/Choir_Short", ____godTearTarget.position);
-        //    //GameManager.GetInstance().OnConversationNext(keyPiece.gameObject, 6f);
-        //    //yield return new WaitForSeconds(1.5f);
-        //    //keyPiece.transform.DOMove(__instance.playerFarming.transform.position + new Vector3(0f, 1f, -1f), 1f, false).SetEase(Ease.InBack);
-        //    //AudioManager.Instance.PlayOneShot("event:/player/float_follower", keyPiece.gameObject);
-        //    //yield return new WaitForSeconds(1f);
-        //    //keyPiece.OnInteract(__instance.playerFarming.state);
-        //    //DataManager.Instance.TalismanPiecesReceivedFromMysticShop++;
-        //    //yield return new WaitForSeconds(2.5f);
-        //    //UnityEngine.Object.Destroy(keyPiece.gameObject);
-        //    //keyPiece = null;
-        //}
+        private static void ShowNewTalismanPieceAnimation()
+        {
+            //shows the animation for a talisman piece being added to the current talisman being built
+            UIKeyScreenOverlayController keyScreenManager = MonoSingleton<UIManager>.Instance.KeyScreenTemplate.Instantiate<UIKeyScreenOverlayController>();
+            keyScreenManager.Show();
+        }
 
         //this is pulled from the seed shop's interaction functionality, as the authentic mystic shop does not include it and it's needed for the mod
         //given a list of non-inventory items and an item_type, return the non-inventory item of that type from the provided list
@@ -457,14 +421,6 @@ namespace MysticAssistant
                 //if the item from the list matches the specified type
                 if (shopItem.itemForTrade == specifiedType)
                 {
-                    //check if the requested type is of ITEM_TYPE.TALISMAN. if it is, we need to do some match for the cost
-                    //if (specifiedType == InventoryItem.ITEM_TYPE.TALISMAN)
-                    //{
-                    //    Console.WriteLine("current talisman pieces count: " + DataManager.Instance.TalismanPiecesReceivedFromMysticShop);
-                    //    Console.WriteLine("remaining to next full piece: " + GetTalismanPiecesRemainingToNearestWholeTalisman());
-                    //    shopItem.SellPrice = GetTalismanPiecesRemainingToNearestWholeTalisman();
-                    //}
-
                     return shopItem;
                 }
             }
@@ -490,13 +446,13 @@ namespace MysticAssistant
                     }
                     break;
                 case InventoryItem.ITEM_TYPE.CRYSTAL_DOCTRINE_STONE:
-                    if (DataManager.Instance.CrystalDoctrinesReceivedFromMysticShop >= 20)
+                    if (DataManager.Instance.CrystalDoctrinesReceivedFromMysticShop >= 24)//max is 24 as of the unholy alliance update
                     {
                         return true;
                     }
                     break;
                 case InventoryItem.ITEM_TYPE.TALISMAN:
-                    if ((DataManager.Instance.TalismanPiecesReceivedFromMysticShop + GetTalismanPiecesRemainingToNearestWholeTalisman()) > 12)
+                    if (DataManager.Instance.TalismanPiecesReceivedFromMysticShop > 12)//max is 12 as of the unholy alliance update
                     {
                         return true;
                     }
@@ -507,18 +463,6 @@ namespace MysticAssistant
             }
 
             return false;
-        }
-
-        private static int GetTalismanPiecesRemainingToNearestWholeTalisman()
-        {
-            //im doing something different with the talisman pieces from the mystic shop. normally, you get a talisman PIECE from the mystic shop.
-            //this is a KEY_PIECE in the ITEM_TYPE enumeration. however, there's a whole bunch of stuff tied to rewarding a player with a talisman piece.
-            //theres animations that play, special effects, etc. im just trying to make this thing work, and am choosing to operate on the assumption that
-            //the player knows how the talisman pieces work by now. so instead of doing the whole bit, we're just using math to figure out how many talisman pieces
-            //the player needs to get the next whole one from the shop, and having them buy specifically that amount. the save file flag is correctly incremented in the
-            //local function GivePlayerBoughtItem() in PrefixSecondaryInteract(), and the adjustment of the cost is handled in GetTradeItem().
-            //the combination of the 2 ensures that the player is still spending 1 god tear per talisman piece (as intended by the devs), 
-            return 4 - DataManager.Instance.TalismanPiecesReceivedFromMysticShop % 4;
         }
 
         //create the non-inventory item objects for everything that will be for sale in the mod shop
@@ -626,6 +570,18 @@ namespace MysticAssistant
                 LastDayChecked = TimeManager.CurrentDay
             };
 
+            TraderTrackerItems followerSkinTTI = new TraderTrackerItems
+            {
+                //skins are added to the player in DataManager SetFollowerSkinUnlocked
+                //item_type id 52
+                itemForTrade = InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN,
+                BuyPrice = 1,
+                BuyOffset = 0,
+                SellPrice = 1,
+                SellOffset = 0,
+                LastDayChecked = TimeManager.CurrentDay
+            };
+
             var ttiList =  new List<TraderTrackerItems>
             {
                 necklaceGoldSkullTTI,
@@ -636,6 +592,7 @@ namespace MysticAssistant
                 necklaceDarkTTI,
                 crystalDoctrineStoneTTI,
                 talismanTTI
+                //followerSkinTTI
             };
 
             return ttiList;
