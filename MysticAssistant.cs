@@ -184,6 +184,7 @@ namespace MysticAssistant
             //track whether the player has bought a talisman piece or a doctrine stone from the shop this visit. used to determine if the associated screens should be shown
             bool boughtKeyPiece = false;
             bool boughtDoctrineStone = false;
+            bool boughtFollowerSkin = false;
             //create a list of actions to run through when the shop is closed, such as the talisman piece adding screen or the crystal doctrine tutorial
             List<Action> postShopActions = new List<Action>();
             
@@ -358,7 +359,11 @@ namespace MysticAssistant
                     //TODO add the stuff to allow players to buy the mystic shop follower skins
                     case InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN:
                         GivePlayerNewFollowerSkin();
-                        postShopActions.Add(ShowUnlockedFollowerSkins);
+                        if (!boughtFollowerSkin)
+                        {
+                            postShopActions.Add(ShowUnlockedFollowerSkins);
+                            boughtFollowerSkin = true;
+                        }
                         break;
                 }
                 //play a pop sound
@@ -405,65 +410,39 @@ namespace MysticAssistant
         private static void ShowCrystalDoctrineInMenu()
         {
             //shows where crystal doctrine upgrade are tracked in the menu
-            UIPlayerUpgradesMenuController uiplayerUpgradesMenuController = MonoSingleton<UIManager>.Instance.PlayerUpgradesMenuTemplate.Instantiate<UIPlayerUpgradesMenuController>();
+            UIPlayerUpgradesMenuController uiplayerUpgradesMenuController = MonoSingleton<UIManager>.Instance.PlayerUpgradesMenuTemplate.Instantiate();
             uiplayerUpgradesMenuController.ShowCrystalUnlock();
         }
 
         private static void ShowNewTalismanPieceAnimation()
         {
             //shows the animation for a talisman piece being added to the current talisman being built
-            UIKeyScreenOverlayController keyScreenManager = MonoSingleton<UIManager>.Instance.KeyScreenTemplate.Instantiate<UIKeyScreenOverlayController>();
+            UIKeyScreenOverlayController keyScreenManager = MonoSingleton<UIManager>.Instance.KeyScreenTemplate.Instantiate();
             keyScreenManager.Show();
         }
 
         private static void ShowUnlockedFollowerSkins()
         {
-            UIFollowerFormsMenuController followerFormsMenuInstance = MonoSingleton<UIManager>.Instance.FollowerFormsMenuTemplate.Instantiate<UIFollowerFormsMenuController>();
+            UIFollowerFormsMenuController followerFormsMenuInstance = MonoSingleton<UIManager>.Instance.FollowerFormsMenuTemplate.Instantiate();
             followerFormsMenuInstance.Show(false);
         }
 
         private static void GivePlayerNewFollowerSkin()
         {
             //TODO probably dont need to build this list every time the player buys a skin, move this somewhere else
-            List<string> shopSkins = DataManager.MysticShopKeeperSkins.ToList();
-            List<string> possibleSkins = new List<string>();
-            StringBuilder sb = new StringBuilder();
-            DataManager.Instance.FollowerSkinsUnlocked.ForEach(u => sb.Append(u + ","));
-            //Console.WriteLine($"all unlocked skins: {sb}");
-            sb.Clear();
+            List<string> possibleSkins = DataManager.MysticShopKeeperSkins.ToList();
 
-            shopSkins.ForEach(x => sb.Append(x + ","));
-            Console.WriteLine($"all possible shop skins: {sb}");
-
-            Console.WriteLine($"possible skin count: {shopSkins.Count}");
-            for (int i = 0; i < shopSkins.Count - 1; i++)
+            //start at the end of the possible skins list and work backwards, removing already unlocked skins.
+            //start at the end so you aren't changing what skin is on what index as you manipulate the list you are looping through
+            for (int i = possibleSkins.Count - 1; i >= 0; i--)
             {
-                Console.Write($"current skin: {shopSkins[i]}");
-                if (!DataManager.GetFollowerSkinUnlocked(shopSkins[i]))
+                if (DataManager.GetFollowerSkinUnlocked(possibleSkins[i]))
                 {
-                    Console.WriteLine("removing");
-                    possibleSkins.Add(shopSkins[i]);
+                    possibleSkins.RemoveAt(i);
                 }
-                Console.WriteLine("");
             }
 
-            sb.Clear();
-            possibleSkins.ForEach(p => sb.Append(p + ","));
-            Console.WriteLine($"possible skins: {sb}");
-            //[Info: Console] all unlocked skins: Cat,Dog,Pig,Deer,Fox,Rabbit,Boss Mama Worm,Hedgehog,Boss Mama Maggot,Boss Burrow Worm,Horse,Shrew,
-            //      Boss Beholder 1,Cow,Fish,Deer_ritual,Unicorn,Boss Egg Hopper,Boss Flying Burp Frog, Boss Mortar Hopper, Giraffe, Red Panda,
-            //      Boss Spider Jump,Pangolin,Bear,Capybara,Boss Millipede Poisoner,Beetle,Boss Scorpion, Bat, Boss Beholder 2,Bison,Frog,Fennec Fox,
-            //      Seahorse, Boss Spiker,Boss Charger, Axolotl, Boss Scuttle Turret, Crocodile, Otter, Hippo, Duck, Elephant, Boss Death Cat, Squirrel,
-            //      Chicken, TwitchDog, Rhino, TwitchDogAlt, Nightwolf, TwitchCat, Raccoon, TwitchMouse, CultLeader 1,Penguin,Shrimp,Koala,CultLeader 2,
-            //      Eagle,Owl,Lion,TwitchPoggers,Badger,Boss Beholder 3,Boss Beholder 4,CultLeader 3,CultLeader 4,Kiwi,Pelican,
-            //[Info: Console] all possible shop skins: Penguin,Lion,Shrimp,Koala,Owl,Volvy,TwitchPoggers,TwitchDog,TwitchDogAlt,TwitchCat,TwitchMouse,StarBunny,Pelican,Kiwi,
-            //[Info: Console] possible skins: Lion,Koala,Volvy,TwitchDog,TwitchCat,StarBunny,Kiwi,
-            //it should just be Volvy and StarBunny. why is it not?
-
-            Console.WriteLine($"mystic shop keeper skins count: {possibleSkins.Count}");
             int skinIndex = UnityEngine.Random.Range(0, possibleSkins.Count - 1);
-            Console.WriteLine($"skin list random index: {skinIndex}");
-            Console.WriteLine($"skin name at index: {possibleSkins[skinIndex]}");
             DataManager.SetFollowerSkinUnlocked(possibleSkins[skinIndex]);
             possibleSkins.RemoveAt(skinIndex);
         }
@@ -616,10 +595,11 @@ namespace MysticAssistant
                 LastDayChecked = TimeManager.CurrentDay
             };
 
-            TraderTrackerItems talismanPieceTTI = new TraderTrackerItems
+            TraderTrackerItems followerSkinTTI = new TraderTrackerItems
             {
-                //item_type id 37
-                itemForTrade = InventoryItem.ITEM_TYPE.KEY_PIECE,
+                //skins are added to the player in DataManager SetFollowerSkinUnlocked
+                //item_type id 52
+                itemForTrade = InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN,
                 BuyPrice = 1,
                 BuyOffset = 0,
                 SellPrice = 1,
@@ -627,11 +607,11 @@ namespace MysticAssistant
                 LastDayChecked = TimeManager.CurrentDay
             };
 
-            TraderTrackerItems followerSkinTTI = new TraderTrackerItems
+            TraderTrackerItems decorationTTI = new TraderTrackerItems
             {
                 //skins are added to the player in DataManager SetFollowerSkinUnlocked
                 //item_type id 52
-                itemForTrade = InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN,
+                itemForTrade = InventoryItem.ITEM_TYPE.FOUND_ITEM_DECORATION_ALT,
                 BuyPrice = 1,
                 BuyOffset = 0,
                 SellPrice = 1,
