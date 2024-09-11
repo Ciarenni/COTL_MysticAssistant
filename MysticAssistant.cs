@@ -9,7 +9,9 @@ using src.UINavigator;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
+using System.Text;
 using TMPro;
 using UnityEngine;
 
@@ -332,7 +334,10 @@ namespace MysticAssistant
                             //so hopefully i read the code right and this does what i think it does! i tested it by inverting the check causing my save that would otherwise
                             //skip this if block to instead trigger it. so in theory, if someone needs to see the tutorial stuff, they will.
                             UpgradeSystem.UnlockAbility(UpgradeSystem.Type.Ritual_CrystalDoctrine, false);
-                            if (DataManager.Instance.TryRevealTutorialTopic(TutorialTopic.CrystalDoctrine))
+                            //**************************
+                            //TODO UNIVERT THIS CHECK, VERY IMPORTANT, DO NOT FORGET
+                            //**************************
+                            if (!DataManager.Instance.TryRevealTutorialTopic(TutorialTopic.CrystalDoctrine))
                             {
                                 postShopActions.Add(ShowCrystalDoctrineTutorial);
                                 postShopActions.Add(ShowCrystalDoctrineInMenu);
@@ -352,8 +357,8 @@ namespace MysticAssistant
                         break;
                     //TODO add the stuff to allow players to buy the mystic shop follower skins
                     case InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN:
-                        int skinIndex = UnityEngine.Random.Range(0, DataManager.MysticShopKeeperSkins.Length - 1);
-                        DataManager.SetFollowerSkinUnlocked(DataManager.MysticShopKeeperSkins[skinIndex]);
+                        GivePlayerNewFollowerSkin();
+                        postShopActions.Add(ShowUnlockedFollowerSkins);
                         break;
                 }
                 //play a pop sound
@@ -409,6 +414,58 @@ namespace MysticAssistant
             //shows the animation for a talisman piece being added to the current talisman being built
             UIKeyScreenOverlayController keyScreenManager = MonoSingleton<UIManager>.Instance.KeyScreenTemplate.Instantiate<UIKeyScreenOverlayController>();
             keyScreenManager.Show();
+        }
+
+        private static void ShowUnlockedFollowerSkins()
+        {
+            UIFollowerFormsMenuController followerFormsMenuInstance = MonoSingleton<UIManager>.Instance.FollowerFormsMenuTemplate.Instantiate<UIFollowerFormsMenuController>();
+            followerFormsMenuInstance.Show(false);
+        }
+
+        private static void GivePlayerNewFollowerSkin()
+        {
+            //TODO probably dont need to build this list every time the player buys a skin, move this somewhere else
+            List<string> shopSkins = DataManager.MysticShopKeeperSkins.ToList();
+            List<string> possibleSkins = new List<string>();
+            StringBuilder sb = new StringBuilder();
+            DataManager.Instance.FollowerSkinsUnlocked.ForEach(u => sb.Append(u + ","));
+            //Console.WriteLine($"all unlocked skins: {sb}");
+            sb.Clear();
+
+            shopSkins.ForEach(x => sb.Append(x + ","));
+            Console.WriteLine($"all possible shop skins: {sb}");
+
+            Console.WriteLine($"possible skin count: {shopSkins.Count}");
+            for (int i = 0; i < shopSkins.Count - 1; i++)
+            {
+                Console.Write($"current skin: {shopSkins[i]}");
+                if (!DataManager.GetFollowerSkinUnlocked(shopSkins[i]))
+                {
+                    Console.WriteLine("removing");
+                    possibleSkins.Add(shopSkins[i]);
+                }
+                Console.WriteLine("");
+            }
+
+            sb.Clear();
+            possibleSkins.ForEach(p => sb.Append(p + ","));
+            Console.WriteLine($"possible skins: {sb}");
+            //[Info: Console] all unlocked skins: Cat,Dog,Pig,Deer,Fox,Rabbit,Boss Mama Worm,Hedgehog,Boss Mama Maggot,Boss Burrow Worm,Horse,Shrew,
+            //      Boss Beholder 1,Cow,Fish,Deer_ritual,Unicorn,Boss Egg Hopper,Boss Flying Burp Frog, Boss Mortar Hopper, Giraffe, Red Panda,
+            //      Boss Spider Jump,Pangolin,Bear,Capybara,Boss Millipede Poisoner,Beetle,Boss Scorpion, Bat, Boss Beholder 2,Bison,Frog,Fennec Fox,
+            //      Seahorse, Boss Spiker,Boss Charger, Axolotl, Boss Scuttle Turret, Crocodile, Otter, Hippo, Duck, Elephant, Boss Death Cat, Squirrel,
+            //      Chicken, TwitchDog, Rhino, TwitchDogAlt, Nightwolf, TwitchCat, Raccoon, TwitchMouse, CultLeader 1,Penguin,Shrimp,Koala,CultLeader 2,
+            //      Eagle,Owl,Lion,TwitchPoggers,Badger,Boss Beholder 3,Boss Beholder 4,CultLeader 3,CultLeader 4,Kiwi,Pelican,
+            //[Info: Console] all possible shop skins: Penguin,Lion,Shrimp,Koala,Owl,Volvy,TwitchPoggers,TwitchDog,TwitchDogAlt,TwitchCat,TwitchMouse,StarBunny,Pelican,Kiwi,
+            //[Info: Console] possible skins: Lion,Koala,Volvy,TwitchDog,TwitchCat,StarBunny,Kiwi,
+            //it should just be Volvy and StarBunny. why is it not?
+
+            Console.WriteLine($"mystic shop keeper skins count: {possibleSkins.Count}");
+            int skinIndex = UnityEngine.Random.Range(0, possibleSkins.Count - 1);
+            Console.WriteLine($"skin list random index: {skinIndex}");
+            Console.WriteLine($"skin name at index: {possibleSkins[skinIndex]}");
+            DataManager.SetFollowerSkinUnlocked(possibleSkins[skinIndex]);
+            possibleSkins.RemoveAt(skinIndex);
         }
 
         //this is pulled from the seed shop's interaction functionality, as the authentic mystic shop does not include it and it's needed for the mod
@@ -591,8 +648,8 @@ namespace MysticAssistant
                 necklaceLightTTI,
                 necklaceDarkTTI,
                 crystalDoctrineStoneTTI,
-                talismanTTI
-                //followerSkinTTI
+                talismanTTI,
+                followerSkinTTI
             };
 
             return ttiList;
