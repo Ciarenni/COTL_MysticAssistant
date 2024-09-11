@@ -220,7 +220,14 @@ namespace MysticAssistant
             var itemsForSale = new List<InventoryItem>();
             foreach (var item in shopList)
             {
-                itemsForSale.Add(new InventoryItem(item.itemForTrade));
+                if(item.itemForTrade == InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN)
+                {
+                    itemsForSale.Add(new InventoryItem(item.itemForTrade, 2));
+                }
+                else
+                {
+                    itemsForSale.Add(new InventoryItem(item.itemForTrade/*,limited quantity goes here*/));
+                }
             }
 
             //set the player states to inactive so they arent running around while the shop is open
@@ -236,7 +243,7 @@ namespace MysticAssistant
                 Offset = new Vector2(0f, 150f),
                 ShowEmpty = true,
                 RequiresDiscovery = false,
-                HideQuantity = true,
+                HideQuantity = false,
                 ShowCoins = false,
                 AllowInputOnlyFromPlayer = playerFarming
             });
@@ -359,6 +366,7 @@ namespace MysticAssistant
                     //TODO add the stuff to allow players to buy the mystic shop follower skins
                     case InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN:
                         GivePlayerNewFollowerSkin();
+                        itemsForSale.First(i => i.type == (int)InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN).quantity--;
                         if (!boughtFollowerSkin)
                         {
                             postShopActions.Add(ShowUnlockedFollowerSkins);
