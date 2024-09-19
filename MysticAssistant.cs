@@ -187,7 +187,16 @@ namespace MysticAssistant
             bool boughtFollowerSkin = false;
             //create a list of actions to run through when the shop is closed, such as the talisman piece adding screen or the crystal doctrine tutorial
             List<Action> postShopActions = new List<Action>();
+            List<string> followerSkinsAvailableFromMysticShop = new List<string>();
             
+            foreach (string skinString in DataManager.MysticShopKeeperSkins.ToList())
+            {
+                if (!DataManager.GetFollowerSkinUnlocked(skinString))
+                {
+                    followerSkinsAvailableFromMysticShop.Add(skinString);
+                }
+            }
+
             //for reasons unknown to me, even though this method is specified to be prefixed to Interaction_MysticShop,
             //it is being added to other interactions as well. it was reported that the shop popped up when using the
             //secondary interact on beds (specifically grand shelters), the town shrine, both of which i was able to replicate,
@@ -220,9 +229,11 @@ namespace MysticAssistant
             var itemsForSale = new List<InventoryItem>();
             foreach (var item in shopList)
             {
+                //set the limited stock on items that are not infinite.
+                //talisman pieces and doctrine stones will count as infinite as buying more than is normally offered is part of the intended QoL of this mod
                 if(item.itemForTrade == InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN)
                 {
-                    itemsForSale.Add(new InventoryItem(item.itemForTrade, 2));
+                    itemsForSale.Add(new InventoryItem(item.itemForTrade, followerSkinsAvailableFromMysticShop.Count));
                 }
                 else
                 {
@@ -365,7 +376,10 @@ namespace MysticAssistant
                         break;
                     //TODO add the stuff to allow players to buy the mystic shop follower skins
                     case InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN:
-                        GivePlayerNewFollowerSkin();
+                        int skinIndex = UnityEngine.Random.Range(0, followerSkinsAvailableFromMysticShop.Count - 1);
+                        DataManager.SetFollowerSkinUnlocked(followerSkinsAvailableFromMysticShop[skinIndex]);
+                        followerSkinsAvailableFromMysticShop.RemoveAt(skinIndex);
+
                         itemsForSale.First(i => i.type == (int)InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN).quantity--;
                         if (!boughtFollowerSkin)
                         {
@@ -431,28 +445,32 @@ namespace MysticAssistant
 
         private static void ShowUnlockedFollowerSkins()
         {
+            //taken from the FollowerSkinShop class, this just shows the unlocked forms screen
             UIFollowerFormsMenuController followerFormsMenuInstance = MonoSingleton<UIManager>.Instance.FollowerFormsMenuTemplate.Instantiate();
             followerFormsMenuInstance.Show(false);
         }
 
-        private static void GivePlayerNewFollowerSkin()
+        //this isnt referenced or used at this point, keeping it around for notes
+        private static void GivePlayerNewFollowerSkin(List<string> possibleSkins)
         {
-            //TODO probably dont need to build this list every time the player buys a skin, move this somewhere else
-            List<string> possibleSkins = DataManager.MysticShopKeeperSkins.ToList();
+            //TODO can i just... make new item_types for each of the follower skins? i probably can, right?
+            //there is an InventoryIconMapping class that seems to be connecting ITEM_TYPEs with images to be displayed.
+            //i think the images for followers are ultimately SkeletonGraphics.
+            //i went from UIFollowerFormsMenucontroller to IndoctrinationFormItem to IndoctrinationCharacterItem to SkeletonGraphic.
+            //this seems to loop back around into WorshipperData which has a list of WorshipperData.CharacterSkin that has SkeletonData in it.
+            //on further review, im pretty sure the IndoctrinationCharacterItem is what is populating the unlocked follower skin menu
+            List<WorshipperData.SkinAndData> temp = WorshipperData.Instance.GetSkinsAll();
+            WorshipperData.SkinAndData firstSkin = temp[0];
+            Console.WriteLine($"first skin: {firstSkin.Skin[0].Skin}");
+            //so to get this working, i would need to modify the InventoryIconMapping._itemMap Dictionary to include a new ITEM_TYPE and a Sprite.
+            //and then i would need to figure out how to get what i assume are SkeletonGraphics to display as Sprites, let alone figuring out where the hell those are stored/addressed.
+            //but thats if i wanted to show the actual form. i could still do that and just show the rolled up scroll and display the follower name...
+            //so what i need to do is:
+            //1) modify InventoryItem to expand the ITEM_TYPE enum with all the follower forms. or just cast an int as the ITEM_TYPE. current max ITEM_TYPE value is 164. start in the 1000s though
+            //2) figure out where it is setting what will be the shop label for that InventoryItem and make it say the follower name
+            //3) add a new entry to the InventoryIconMapping private variable _itemMap with these new ITEM_TYPEs
+            //4) add each individual skin to the shop list here
 
-            //start at the end of the possible skins list and work backwards, removing already unlocked skins.
-            //start at the end so you aren't changing what skin is on what index as you manipulate the list you are looping through
-            for (int i = possibleSkins.Count - 1; i >= 0; i--)
-            {
-                if (DataManager.GetFollowerSkinUnlocked(possibleSkins[i]))
-                {
-                    possibleSkins.RemoveAt(i);
-                }
-            }
-
-            int skinIndex = UnityEngine.Random.Range(0, possibleSkins.Count - 1);
-            DataManager.SetFollowerSkinUnlocked(possibleSkins[skinIndex]);
-            possibleSkins.RemoveAt(skinIndex);
         }
 
         //this is pulled from the seed shop's interaction functionality, as the authentic mystic shop does not include it and it's needed for the mod
@@ -502,7 +520,7 @@ namespace MysticAssistant
                     }
                     break;
                 default:
-                    //not one of the limited items
+                    //not one of the normally limited items i am making infinitely available
                     return false;
             }
 
@@ -618,7 +636,7 @@ namespace MysticAssistant
             TraderTrackerItems decorationTTI = new TraderTrackerItems
             {
                 //skins are added to the player in DataManager SetFollowerSkinUnlocked
-                //item_type id 52
+                //item_type id 164
                 itemForTrade = InventoryItem.ITEM_TYPE.FOUND_ITEM_DECORATION_ALT,
                 BuyPrice = 1,
                 BuyOffset = 0,
