@@ -353,10 +353,7 @@ namespace MysticAssistant
                             //so hopefully i read the code right and this does what i think it does! i tested it by inverting the check causing my save that would otherwise
                             //skip this if block to instead trigger it. so in theory, if someone needs to see the tutorial stuff, they will.
                             UpgradeSystem.UnlockAbility(UpgradeSystem.Type.Ritual_CrystalDoctrine, false);
-                            //**************************
-                            //TODO UNIVERT THIS CHECK, VERY IMPORTANT, DO NOT FORGET
-                            //**************************
-                            if (!DataManager.Instance.TryRevealTutorialTopic(TutorialTopic.CrystalDoctrine))
+                            if (DataManager.Instance.TryRevealTutorialTopic(TutorialTopic.CrystalDoctrine))
                             {
                                 postShopActions.Add(ShowCrystalDoctrineTutorial);
                                 postShopActions.Add(ShowCrystalDoctrineInMenu);
