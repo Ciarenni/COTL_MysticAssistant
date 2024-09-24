@@ -263,9 +263,8 @@ namespace MysticAssistant
                 shopItemSelector.OnCancel,
                 new Action(delegate ()
                 {
-                    //TODO uncomment
-                    //SetMysticShopInteractable(__instance, false);
-                    //__instance.StartCoroutine(RunTutorialsCoroutine(__instance, state));
+                    
+                    __instance.StartCoroutine(RunTutorialsCoroutine(__instance, state));
                     HUD_Manager.Instance.Show(0, false);
                 }));
 
@@ -283,8 +282,7 @@ namespace MysticAssistant
                 //speculation: because this is attached to the Interaction_MysticShop interaction, the state being changed in the actual function is what causes this.
                 //  i have no easy way to verify this and it honestly doesn't matter because this is the cleanest, easiest solution to the problem.
                 PlayerFarming.SetStateForAllPlayers(StateMachine.State.InActive, false, null);
-                //TODO uncomment
-                //SetMysticShopInteractable(__instance, false);
+                SetMysticShopInteractable(__instance, false);
                 __instance.StartCoroutine(RunTutorialsCoroutine(__instance, state));
                 shopItemSelector = null;
             });
@@ -372,8 +370,18 @@ namespace MysticAssistant
 
         private static IEnumerator RunTutorialsCoroutine(Interaction_MysticShop instance, StateMachine state)
         {
+            //set the Mystic Shop to uninteractable so it is not accidentally triggered during dialogs being shown.
+            //the code that is waiting for the menus to close should be enough, but this is some extra security.
+            SetMysticShopInteractable(instance, false);
+
+            //wait for any other menus to close before showing the post shop screens. this is mostly targeted at the confirmation dialog i have for over-buying an item
+            while (UIMenuBase.ActiveMenus.Count > 0)
+            {
+                yield return null;
+            }
+
             //loop of the list of post shop actions and invoke them, waiting for the menus from each one to be closed before advancing to the next
-            foreach(Action psa in _postShopActions)
+            foreach (Action psa in _postShopActions)
             {
                 psa.Invoke();
                 while (UIMenuBase.ActiveMenus.Count > 0)
@@ -382,9 +390,9 @@ namespace MysticAssistant
                 }
             }
 
-            //TODO uncomment
-            //yield return new WaitForSeconds(1);
-            //SetMysticShopInteractable(instance, true);
+            //once all the menus are closed, wait an additional second and then re-enable interactions with the Mystic Shop
+            yield return new WaitForSeconds(1);
+            SetMysticShopInteractable(instance, true);
 
             //returns control back to the player(s) and sets them back to idle from inactive
             foreach (PlayerFarming playerFarming in PlayerFarming.players)
