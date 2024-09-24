@@ -250,12 +250,6 @@ namespace MysticAssistant
                             //if they acknowledge the warning, proceed to the purchase
                             GivePlayerBoughtItem(__instance, shopItemSelector, playerFarming, tradeItem, chosenItemType);
                         }));
-                        //TODO remove this OnCancel as it is actually just making things worse
-                        uimenuConfirmationWindow.OnCancel = (Action)Delegate.Combine(uimenuConfirmationWindow.OnCancel, new Action(delegate ()
-                        {
-                            //if they decline and back out, dont proceed to the purchase
-                            return;
-                        }));
                     }
                     else
                     {
