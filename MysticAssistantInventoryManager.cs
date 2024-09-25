@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace MysticAssistant
@@ -11,7 +12,11 @@ namespace MysticAssistant
 
         public bool BoughtFollowerSkin { get; private set; }
 
+        public bool BoughtDecoration { get; private set; }
+
         private List<string> _followerSkinsAvailableFromMysticShop = new List<string>();
+
+        private List<StructureBrain.TYPES> _decorationsAvailableFromMysticShop = new List<StructureBrain.TYPES>();
 
         private List<InventoryItem> _shopInventory = new List<InventoryItem>();
 
@@ -23,6 +28,7 @@ namespace MysticAssistant
         public void ResetInventory()
         {
             _followerSkinsAvailableFromMysticShop.Clear();
+            _decorationsAvailableFromMysticShop.Clear();
             _shopInventory.Clear();
 
             PopulateShopInventory();
@@ -34,6 +40,7 @@ namespace MysticAssistant
         private void PopulateShopInventory()
         {
             PopulateFollowerSkinShopList();
+            PopulateDecorationShopList();
 
             foreach (TraderTrackerItems item in MysticAssistantInventoryInfo.GetMysticAssistantShopItemTypeList())
             {
@@ -42,6 +49,10 @@ namespace MysticAssistant
                 if (item.itemForTrade == InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN)
                 {
                     _shopInventory.Add(new InventoryItem(item.itemForTrade, _followerSkinsAvailableFromMysticShop.Count));
+                }
+                else if (item.itemForTrade == InventoryItem.ITEM_TYPE.FOUND_ITEM_DECORATION_ALT)
+                {
+                    _shopInventory.Add(new InventoryItem(item.itemForTrade, _decorationsAvailableFromMysticShop.Count));
                 }
                 else
                 {
@@ -58,6 +69,20 @@ namespace MysticAssistant
                 if (!DataManager.GetFollowerSkinUnlocked(skinString))
                 {
                     _followerSkinsAvailableFromMysticShop.Add(skinString);
+                }
+            }
+        }
+
+        private void PopulateDecorationShopList()
+        {
+            //loop over the list of decorations available from the mystic shop, if a given decoration is not unlocked, add it to the shop stock
+            foreach (StructureBrain.TYPES deco in DataManager.MysticShopKeeperDecorations.ToList())
+            {
+                Console.WriteLine("possible shop decoration: " + deco.ToString());
+                if (!DataManager.Instance.UnlockedStructures.Contains(deco))
+                {
+                    Console.WriteLine("is not unlocked, adding to inventory");
+                    _decorationsAvailableFromMysticShop.Add(deco);
                 }
             }
         }
@@ -86,6 +111,21 @@ namespace MysticAssistant
             _followerSkinsAvailableFromMysticShop.Remove(skinName);
         }
 
+        public StructureBrain.TYPES GetDecorationByIndex(int index)
+        {
+            return _decorationsAvailableFromMysticShop[index];
+        }
+
+        public int GetCountOfAvailableDecorations()
+        {
+            return _decorationsAvailableFromMysticShop.Count;
+        }
+
+        public void RemoveDecorationFromShopList(StructureBrain.TYPES deco)
+        {
+            _decorationsAvailableFromMysticShop.Remove(deco);
+        }
+
         public void ChangeShopStockByQuantity(InventoryItem.ITEM_TYPE itemType, int quantity)
         {
             _shopInventory.First(s => s.type == (int)itemType).quantity += quantity;
@@ -100,6 +140,7 @@ namespace MysticAssistant
             BoughtKeyPiece = flag;
             BoughtCrystalDoctrineStone = flag;
             BoughtFollowerSkin = flag;
+            BoughtDecoration = flag;
         }
 
         public void SetBoughtKeyPieceFlag(bool showFlag)
@@ -115,6 +156,11 @@ namespace MysticAssistant
         public void SetBoughtFollowerSkinFlag(bool showFlag)
         {
             BoughtFollowerSkin = showFlag;
+        }
+
+        public void SetBoughtDecorationFlag(bool showFlag)
+        {
+            BoughtDecoration = showFlag;
         }
 
         #endregion

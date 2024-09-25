@@ -175,7 +175,8 @@ namespace MysticAssistant
                 necklaceDarkTTI,
                 crystalDoctrineStoneTTI,
                 talismanTTI,
-                followerSkinTTI
+                followerSkinTTI,
+                decorationTTI
             };
 
             return ttiList;

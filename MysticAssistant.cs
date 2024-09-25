@@ -1,6 +1,8 @@
 ﻿using BepInEx;
 using HarmonyLib;
+using I2.Loc;
 using Lamb.UI;
+using Lamb.UI.BuildMenu;
 using MMTools;
 using src.Extensions;
 using src.UI.Overlays.TutorialOverlay;
@@ -22,6 +24,7 @@ namespace MysticAssistant
         private static MysticAssistantInventoryManager _inventoryManager = new MysticAssistantInventoryManager();
         //create a list of actions to run through when the shop is closed, such as the talisman piece adding screen or the crystal doctrine tutorial
         private static List<Action> _postShopActions = new List<Action>();
+        private static List<StructureBrain.TYPES> _unlockedDecorations = new List<StructureBrain.TYPES>();
         private static bool _showOverbuyWarning = false;
 
         private void Awake()
@@ -194,6 +197,7 @@ namespace MysticAssistant
             _inventoryManager.ResetInventory();
             //clear out any possible remaining post-screen actions
             _postShopActions.Clear();
+            _unlockedDecorations.Clear();
 
             //for reasons unknown to me, even though this method is specified to be prefixed to Interaction_MysticShop,
             //it is being added to other interactions as well. it was reported that the shop popped up when using the
@@ -308,7 +312,10 @@ namespace MysticAssistant
                         //so hopefully i read the code right and this does what i think it does! i tested it by inverting the check causing my save that would otherwise
                         //skip this if block to instead trigger it. so in theory, if someone needs to see the tutorial stuff, they will.
                         UpgradeSystem.UnlockAbility(UpgradeSystem.Type.Ritual_CrystalDoctrine, false);
-                        if (DataManager.Instance.TryRevealTutorialTopic(TutorialTopic.CrystalDoctrine))
+                        //**************************
+                        //TODO UNINVERT THIS CHECK, VERY IMPORTANT, DO NOT FORGET
+                        //**************************
+                        if (!DataManager.Instance.TryRevealTutorialTopic(TutorialTopic.CrystalDoctrine))
                         {
                             _postShopActions.Add(ShowCrystalDoctrineTutorial);
                             _postShopActions.Add(ShowCrystalDoctrineInMenu);
@@ -328,25 +335,47 @@ namespace MysticAssistant
                     }
                     break;
 
+                //the following cases are for items with limited stock because they award one-time things for a pool of items, such as follower skins.
+                //there is nothing to overbuy because there's nothing else to buy once you hit the max.
+                //i have the assisstant randomly selecting an item from the available pool for each of them.
+                //while i wrote this mod to give players agency over what they get from the mystic shop, having a shop inventory that includes:
+                //      every skin
+                //      every relic
+                //      every tarot card
+                //      every decoration
+                //would be quite the lengthy list, especially visually. this is the compromise i have settled on.
                 case InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN:
-                    //randomly select a skin from the available pool. there are 14 skins available from the shop (as of the unholy alliance update), so while
-                    //i wrote this mod to give players agency over what they get from the mystic shop, having a shop inventory that includes:
-                    //      every skin
-                    //      every relic
-                    //      every tarot card
-                    //      every decoration
-                    //would be quite the lengthy list, especially visually. this is the compromise i have settled on.
                     int skinIndex = UnityEngine.Random.Range(0, _inventoryManager.GetCountOfAvailableFollowerSkins() - 1);
                     string skinToUnlock = _inventoryManager.GetFollowerSkinNameByIndex(skinIndex);
                     DataManager.SetFollowerSkinUnlocked(skinToUnlock);
+
                     _inventoryManager.RemoveFollowerSkinFromShopList(skinToUnlock);
-                    //we only need to adjust the stock of items we want to truly be limited: things with limited size collections like follower skins
                     _inventoryManager.ChangeShopStockByQuantity(boughtItemType, -1);
 
                     if (!_inventoryManager.BoughtFollowerSkin)
                     {
                         _postShopActions.Add(ShowUnlockedFollowerSkins);
                         _inventoryManager.SetBoughtFollowerSkinFlag(true);
+                    }
+                    break;
+
+                //TODO add some custom shop text dictionary for ITEM_TYPE/string, as the decoration label does not display correct
+                //from InventoryItem, look at this:
+                //LocalizationManager.GetTranslation(string.Format("Inventory/{0}", InventoryItem.ITEM_TYPE.FOUND_ITEM_DECORATION))
+                case InventoryItem.ITEM_TYPE.FOUND_ITEM_DECORATION_ALT:
+                    int decoIndex = UnityEngine.Random.Range(0, _inventoryManager.GetCountOfAvailableDecorations() - 1);
+                    StructureBrain.TYPES deco = _inventoryManager.GetDecorationByIndex(decoIndex);
+                    StructuresData.CompleteResearch(deco);
+                    StructuresData.SetRevealed(deco);
+                    _unlockedDecorations.Add(deco);
+
+                    _inventoryManager.RemoveDecorationFromShopList(deco);
+                    _inventoryManager.ChangeShopStockByQuantity(boughtItemType, -1);
+
+                    if (!_inventoryManager.BoughtDecoration)
+                    {
+                        _postShopActions.Add(ShowUnlockedDecorations);
+                        _inventoryManager.SetBoughtDecorationFlag(true);
                     }
                     break;
             }
@@ -362,7 +391,8 @@ namespace MysticAssistant
             //the code that is waiting for the menus to close should be enough, but this is some extra security.
             SetMysticShopInteractable(instance, false);
 
-            //wait for any other menus to close before showing the post shop screens. this is mostly targeted at the confirmation dialog i have for over-buying an item
+            //wait for any other menus to close before showing the post shop screens.
+            //i added this when i still had the overbuying confirmation dialog in, but im electing to keep it anyway just in case
             while (UIMenuBase.ActiveMenus.Count > 0)
             {
                 yield return null;
@@ -421,7 +451,14 @@ namespace MysticAssistant
         {
             //taken from the FollowerSkinShop class, this just shows the unlocked forms screen
             UIFollowerFormsMenuController followerFormsMenuInstance = MonoSingleton<UIManager>.Instance.FollowerFormsMenuTemplate.Instantiate();
-            followerFormsMenuInstance.Show(false);
+            followerFormsMenuInstance.Show();
+        }
+
+        private static void ShowUnlockedDecorations()
+        {
+            //found this in the UI.BuildMenu collection, this actually shows the screen with buildings on it, rather than the "new item get, lamb float" pop up
+            UIBuildMenuController buildMenuController = MonoSingleton<UIManager>.Instance.BuildMenuTemplate.Instantiate();
+            buildMenuController.Show(_unlockedDecorations);
         }
 
         private static void SetMysticShopInteractable(Interaction_MysticShop instance, bool activeFlag)
