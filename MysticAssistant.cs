@@ -3,15 +3,12 @@ using HarmonyLib;
 using Lamb.UI;
 using MMTools;
 using src.Extensions;
-using src.UI;
 using src.UI.Overlays.TutorialOverlay;
 using src.UINavigator;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-using System.Text;
 using TMPro;
 using UnityEngine;
 
@@ -25,6 +22,7 @@ namespace MysticAssistant
         private static MysticAssistantInventoryManager _inventoryManager = new MysticAssistantInventoryManager();
         //create a list of actions to run through when the shop is closed, such as the talisman piece adding screen or the crystal doctrine tutorial
         private static List<Action> _postShopActions = new List<Action>();
+        private static bool _showOverbuyWarning = false;
 
         private void Awake()
         {
@@ -36,6 +34,7 @@ namespace MysticAssistant
             //patch the modified methods as pre- and post-fix as appropriate
             harmony.Patch(AccessTools.Method(typeof(Interaction_MysticShop), "Start"), postfix: new HarmonyMethod(patchType, nameof(PostfixEnableMysticAssistantOnTheMysticShop)));
             harmony.Patch(AccessTools.Method(typeof(UIItemSelectorOverlayController), "RefreshContextText"), prefix: new HarmonyMethod(patchType, nameof(PrefixRefreshContextTextForAssistant)));
+            harmony.Patch(AccessTools.Method(typeof(UIItemSelectorOverlayController), "OnItemSelected"), prefix: new HarmonyMethod(patchType, nameof(PrefixOnItemSelectedForAssistant)));
             harmony.Patch(AccessTools.Method(typeof(UIItemSelectorOverlayController), "OnItemClicked"), prefix: new HarmonyMethod(patchType, nameof(PrefixOnItemClickedForAssistant)));
             harmony.Patch(AccessTools.Method(typeof(Interaction_MysticShop), "OnSecondaryInteract"), prefix: new HarmonyMethod(patchType, nameof(PrefixSecondaryInteract)));
         }
@@ -66,12 +65,12 @@ namespace MysticAssistant
                 return true;
             }
 
-            //the rest of the code in this method is taken almost verbatim from the original code.
-            //the general gist is it checks if the player is buying items or selling items (the player is buying from the assistant, so the Context is Buy)
+            //the code in this method is taken almost verbatim from the original code in UIItemSelectorOverlayController.
+            //in the original, the general gist is it checks if the player is buying items or selling items.
             //then, based on the Context, it determines the value of the item and how many the player currently has in the inventory, along with
             //the name of the highlighted/selected item, then sets that as the label.
-            //the only changes are to use God Tears instead of the coins, and changes to variables to make it work as a prefix Harmony method
-            if (____params.Context == ItemSelector.Context.Sell || ____params.Context == ItemSelector.Context.Buy)
+            //however, the player is always buying from the assistant, so the Context should only ever be Buy. i only brought over the pieces that deal with buying
+            if (____params.Context == ItemSelector.Context.Buy)
             {
                 //if the UIItemSelector has a CostProvider method set up, invoke it using the most recent item highlighted/selected to get the non-inventory variant of the item 
                 TraderTrackerItems traderTrackerItems = __instance.CostProvider?.Invoke(____category.MostRecentItem);
@@ -81,31 +80,30 @@ namespace MysticAssistant
                     return false;
                 }
 
-                if (____params.Context == ItemSelector.Context.Buy)
+                //if the player is trying to buy more of something than the game normally allows, change the shop text to the warning and make it red. otherwise, show the standard label
+                if (_showOverbuyWarning)
                 {
-                    //if the item has an offset, calculate the % of the base sell price compared to the actual (base + offset), store it in _additionalText
-                    if (traderTrackerItems.SellOffset > 0)
-                    {
-                        float num = (float)traderTrackerItems.SellPrice / (float)traderTrackerItems.SellPriceActual;
-                        num *= 100f;
-                        ____addtionalText = " <color=red>+ " + Math.Round((double)num, 0) + "%</color> ";
-                    }
+                    ____buttonPromptText.text = " <color=red>You are buying more of this than the game normally allows. Click it again to confirm.</color>";
+                }
+                else
+                {
                     //set up the label for the selected item using a localized string (_contextString), the localized name of the most recent item highlighted/selected,
                     //the image of the currency item (god tear for this mod), the actual cost (along with current quantity of currency item), and sticking the _additionalText on the end
                     ____buttonPromptText.text = string.Format(____contextString, InventoryItem.LocalizedName(____category.MostRecentItem) ?? "", CostFormatter.FormatCost(InventoryItem.ITEM_TYPE.GOD_TEAR, traderTrackerItems.SellPriceActual, true, false)) + ____addtionalText;
-                    return false;
                 }
-                ____buttonPromptText.text = string.Format(____contextString, InventoryItem.LocalizedName(____category.MostRecentItem), CostFormatter.FormatCost(InventoryItem.ITEM_TYPE.GOD_TEAR, traderTrackerItems.BuyPriceActual, true, true)) + ____addtionalText;
                 return false;
-            }
-            else
-            {
-                //if the Context isn't Buy or Sell (such as a farm plot which has a Context of SetLabel), then set up the label with the localized name of the most recent item highlighted/selected, and stick the _additionalText on the end
-                ____buttonPromptText.text = string.Format(____contextString, InventoryItem.LocalizedName(____category.MostRecentItem)) + ____addtionalText;
             }
 
             Console.WriteLine("prefix for context text ending");
             return false;
+        }
+
+        public static bool PrefixOnItemSelectedForAssistant()
+        {
+            //add a prefix for the OnItemSelected so the overbuy warning flag can be reset, then proceed to the original OnItemSelected method
+            //we do not need to refresh the label text here as it is done in the original method, as one might assume from changing a selection on a shop menu
+            _showOverbuyWarning = false;
+            return true;
         }
 
         public static bool PrefixOnItemClickedForAssistant(UIItemSelectorOverlayController __instance,
@@ -125,58 +123,66 @@ namespace MysticAssistant
             //the method will return the quantity of the item from the UIItemSelector's inventory (if it has a custom one assigned, i.e. a shop), or the player's inventory otherwise.
             MethodInfo getItemQuantity = AccessTools.Method(typeof(UIItemSelectorOverlayController), "GetItemQuantity");
 
-            //the rest of the code in this method is taken almost verbatim from the original code.
-            //the only changes are to use God Tears instead of the coins, and changes to variables to make it work as a prefix Harmony method
-            if (____params.Context == ItemSelector.Context.SetLabel)
-            {
-                //this context is used for an item selector that is not meant to be a shop, such as choosing what seeds to plant at a farm plot
-                //which means it doesn't need to check to see if it exists in the player's inventory
-                //i.e. if you use a farm plot and have 0 pumpkin seeds, pumpkin seeds will still be displayed as an option,
-                //but with a quantity label of 0 and unable to be chosen
-                Choose();
-                return false;
-            }
-
+            //the majority of the code in this method is taken almost verbatim from the original code in UIItemSelectorOverlayController
             //if the item has a quantity greater than 0 in whichever inventory it is in, the player's or the UIItemSelector's
             //get the quantity of the item in either the UIItemSelector's inventory (if it has one set)
             if ((int)getItemQuantity.Invoke(__instance, new object[] { item.Type }) > 0)
             {
-                //if the context is NOT Buy, allow the the player to pick it, then bail
-                if (____params.Context != ItemSelector.Context.Buy)
+                //ive removed the checks that were copied from the original code. this should only be reached when using the mystic shop (thanks to an earlier check in the code flow)
+                //and because you can only buy stuff from the Mystic Shop, never sell to it, the ItemSelector.Context should always be Buy. but ill check it here anyway, just in case
+                if (____params.Context == ItemSelector.Context.Buy)
                 {
-                    Choose();
-                    return false;
-                }
-                //at this point, the Context can only be Buy, so we need to get the non-inventory variant of the item so we can get it's actual (base + offset) cost
-                TraderTrackerItems traderTrackerItems = __instance.CostProvider?.Invoke(item.Type);
-                if (traderTrackerItems != null && Inventory.GetItemQuantity(InventoryItem.ITEM_TYPE.GOD_TEAR) >= traderTrackerItems.SellPriceActual)
-                {
-                    //if the player has enough of the currency to cover the item's cost, allow them to pick it, then bail
-                    Choose();
-                    return false;
+                    TraderTrackerItems traderTrackerItems = __instance.CostProvider?.Invoke(item.Type);
+                    //if the item has a cost and if the player has enough of the currency to cover the item's cost, allow them to pick it, then bail
+                    if (traderTrackerItems != null && Inventory.GetItemQuantity(InventoryItem.ITEM_TYPE.GOD_TEAR) >= traderTrackerItems.SellPriceActual)
+                    {
+                        //if the overbuy warning flag is not on and the warning needs to be shown, toggle the flag
+                        //so the RefreshTextContext will show the warning, and do not invoke OnItemChosen.
+                        //if the overbuy warning flag is already on, then the warning is currently being displayed, so selecting the item again is acting as confirmation.
+                        //the overbuy warning flag is reset when an item is bought or the hovered selection is changed
+                        if (!_showOverbuyWarning && MysticAssistantInventoryInfo.CheckForBoughtQuantityWarning(traderTrackerItems))
+                        {
+                            _showOverbuyWarning = true;
+                            item.Shake();
+                            //fire a sound alert to help snag the player's attention for the warning
+                            //but give it a 10% chance to hit em with the yeehaa bleat, because thats funny
+                            if (UnityEngine.Random.Range(0, 9) == 5)
+                            {
+                                UIManager.PlayAudio("event:/player/yeehaa");//bleat-haa
+                            }
+                            else
+                            {
+                                UIManager.PlayAudio("event:/player/speak_to_follower_noBookPage");//regular bleat
+                            }
+                            //other sound options
+                            //"event:/enemy/spit_gross_projectile"
+                            //"event:/player/goat_player/goat_bleat"
+                        }
+                        else
+                        {
+                            //if the overbuy warning does not need to be shown, or is currently being shown, then actual buying is allowed and invoked here
+                            __instance.OnItemChosen?.Invoke(item.Type);
+                            if (____params.HideOnSelection)
+                            {
+                                //if the UIItemSelector should be hidden on closing, like a farm plot, hide it after selection
+                                __instance.Hide();
+                            }
+                            else
+                            {
+                                //otherwise, update the quantities (which will also update the label)
+                                __instance.UpdateQuantities();
+                            }
+                            _showOverbuyWarning = false;
+                        }
+                        //update the label either after buying something (to update the amount of god tears in the label) or to add/remove the overbuying warning
+                        AccessTools.Method(typeof(UIItemSelectorOverlayController), "RefreshContextText").Invoke(__instance, new object[] { });
+                        return false;
+                    }
                 }
             }
             //if the item has not been successfully bought or sold, whichever is appropriate, shake the item in the view and play a noise
             item.Shake();
-            AudioManager.Instance.PlayOneShot("event:/ui/negative_feedback");
-
-            //im personally not a fan of local functions, but it gets the job done
-            void Choose()
-            {
-                //invoke the OnItemChosen delegate for the UIItemSelector, which can have actions added to it in implementations of the UIItemSelector,
-                //as seen in PrefixSecondaryInteract where i set up the shopItemSelector
-                __instance.OnItemChosen?.Invoke(item.Type);
-                if (____params.HideOnSelection)
-                {
-                    //if the UIItemSelector should be hidden on closing, like a farm plot, hide it after selection
-                    __instance.Hide();
-                }
-                else
-                {
-                    //otherwise, update the quantities (which will also update the label)
-                    __instance.UpdateQuantities();
-                }
-            }
+            UIManager.PlayAudio("event:/ui/negative_feedback");
 
             return false;
         }
@@ -186,10 +192,9 @@ namespace MysticAssistant
             Console.WriteLine("mystic assistant secondary action applied to mystic shop");
             //reset the inventory manager each time the shop is accessed, to make sure we have the most up to date information
             _inventoryManager.ResetInventory();
-            //track whether the player has bought a talisman piece or a doctrine stone from the shop this visit. used to determine if the associated screens should be shown
-
+            //clear out any possible remaining post-screen actions
             _postShopActions.Clear();
-            
+
             //for reasons unknown to me, even though this method is specified to be prefixed to Interaction_MysticShop,
             //it is being added to other interactions as well. it was reported that the shop popped up when using the
             //secondary interact on beds (specifically grand shelters), the town shrine, both of which i was able to replicate,
@@ -240,22 +245,9 @@ namespace MysticAssistant
                 {
                     //get the non-inventory of the chosen item
                     TraderTrackerItems tradeItem = GetTraderTrackerItemFromItemType(chosenItemType);
-                    //check to see if the user is attempting to buy something that might not be needed
-                    if (MysticAssistantInventoryInfo.CheckForBoughtQuantityWarning(tradeItem))
-                    {
-                        UIMenuConfirmationWindow uimenuConfirmationWindow = shopItemSelector.Push<UIMenuConfirmationWindow>(MonoSingleton<UIManager>.Instance.ConfirmationWindowTemplate);
-                        uimenuConfirmationWindow.Configure("Confirm purchase", "You have already bought the maximum legitimate amount of this item. Are you sure you want to buy more?", false);
-                        uimenuConfirmationWindow.OnConfirm = (Action)Delegate.Combine(uimenuConfirmationWindow.OnConfirm, new Action(delegate ()
-                        {
-                            //if they acknowledge the warning, proceed to the purchase
-                            GivePlayerBoughtItem(__instance, shopItemSelector, playerFarming, tradeItem, chosenItemType);
-                        }));
-                    }
-                    else
-                    {
-                        //if no warning needs to be shown, just proceed to the purchase
-                        GivePlayerBoughtItem(__instance, shopItemSelector, playerFarming, tradeItem, chosenItemType);
-                    }
+                    
+                    //then give the player the item and take the cost from their inventory
+                    GivePlayerBoughtItem(__instance, shopItemSelector, playerFarming, tradeItem, chosenItemType);
                 }));
 
             //on canceling out of the shop, show the HUD again
@@ -263,8 +255,6 @@ namespace MysticAssistant
                 shopItemSelector.OnCancel,
                 new Action(delegate ()
                 {
-                    
-                    __instance.StartCoroutine(RunTutorialsCoroutine(__instance, state));
                     HUD_Manager.Instance.Show(0, false);
                 }));
 
@@ -286,9 +276,6 @@ namespace MysticAssistant
                 __instance.StartCoroutine(RunTutorialsCoroutine(__instance, state));
                 shopItemSelector = null;
             });
-
-            //making this a local function to limit what all needs to be passed to it
-            
         }
 
         private static void GivePlayerBoughtItem(Interaction_MysticShop __instance, UIItemSelectorOverlayController shopItemSelector, PlayerFarming playerFarming,
@@ -304,10 +291,12 @@ namespace MysticAssistant
                     Inventory.ChangeItemQuantity((int)boughtItemType, 1, 0);
                     DataManager.Instance.HasAymSkin = true;
                     break;
+
                 case InventoryItem.ITEM_TYPE.Necklace_Light:
                     Inventory.ChangeItemQuantity((int)boughtItemType, 1, 0);
                     DataManager.Instance.HasBaalSkin = true;
                     break;
+
                 case InventoryItem.ITEM_TYPE.CRYSTAL_DOCTRINE_STONE:
                     Inventory.ChangeItemQuantity((int)boughtItemType, 1, 0);
                     DataManager.Instance.CrystalDoctrinesReceivedFromMysticShop++;
@@ -327,6 +316,7 @@ namespace MysticAssistant
                         _inventoryManager.SetBoughtCrystalDoctrineStoneFlag(true);
                     }
                     break;
+
                 case InventoryItem.ITEM_TYPE.TALISMAN:
                     Inventory.KeyPieces++;//because the talisman pieces are not in the standard inventory, their addition needs to be handled like this.
                     DataManager.Instance.TalismanPiecesReceivedFromMysticShop++;
@@ -334,9 +324,10 @@ namespace MysticAssistant
                     if (!_inventoryManager.BoughtKeyPiece)
                     {
                         _postShopActions.Add(ShowNewTalismanPieceAnimation);
-                        _inventoryManager.SetBoughtKeyPieceStoneFlag(true);
+                        _inventoryManager.SetBoughtKeyPieceFlag(true);
                     }
                     break;
+
                 case InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN:
                     //randomly select a skin from the available pool. there are 14 skins available from the shop (as of the unholy alliance update), so while
                     //i wrote this mod to give players agency over what they get from the mystic shop, having a shop inventory that includes:
@@ -355,17 +346,14 @@ namespace MysticAssistant
                     if (!_inventoryManager.BoughtFollowerSkin)
                     {
                         _postShopActions.Add(ShowUnlockedFollowerSkins);
-                        _inventoryManager.SetBoughtFollowerSkinStoneFlag(true);
+                        _inventoryManager.SetBoughtFollowerSkinFlag(true);
                     }
                     break;
             }
             //play a pop sound
-            AudioManager.Instance.PlayOneShot("event:/followers/pop_in", __instance.gameObject);
+            UIManager.PlayAudio("event:/followers/pop_in");
             //create a god tear that zips to the mystic shop, to look nice
             ResourceCustomTarget.Create(__instance.gameObject, playerFarming.transform.position, InventoryItem.ITEM_TYPE.GOD_TEAR, delegate () { }, true);
-
-            //update the item selector label
-            AccessTools.Method(typeof(UIItemSelectorOverlayController), "RefreshContextText").Invoke(shopItemSelector, new object[] { });
         }
 
         private static IEnumerator RunTutorialsCoroutine(Interaction_MysticShop instance, StateMachine state)
@@ -406,6 +394,8 @@ namespace MysticAssistant
             state.CURRENT_STATE = StateMachine.State.Idle;
         }
 
+        #region Post-shop actions
+
         private static void ShowCrystalDoctrineTutorial()
         {
             //shows the crystal doctrine tutorial pop ups
@@ -438,6 +428,8 @@ namespace MysticAssistant
         {
             instance.Interactable = activeFlag;
         }
+
+        #endregion
 
         //this isnt referenced or used at this point, keeping it around for notes
         private static void GivePlayerNewFollowerSkin(List<string> possibleSkins)

@@ -1,7 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
 namespace MysticAssistant
 {
@@ -104,7 +102,7 @@ namespace MysticAssistant
             BoughtFollowerSkin = flag;
         }
 
-        public void SetBoughtKeyPieceStoneFlag(bool showFlag)
+        public void SetBoughtKeyPieceFlag(bool showFlag)
         {
             BoughtKeyPiece = showFlag;
         }
@@ -114,7 +112,7 @@ namespace MysticAssistant
             BoughtCrystalDoctrineStone = showFlag;
         }
 
-        public void SetBoughtFollowerSkinStoneFlag(bool showFlag)
+        public void SetBoughtFollowerSkinFlag(bool showFlag)
         {
             BoughtFollowerSkin = showFlag;
         }
