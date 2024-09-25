@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using I2.Loc;
+using System.Collections.Generic;
 
 namespace MysticAssistant
 {
@@ -8,6 +9,26 @@ namespace MysticAssistant
         private const int MAX_COUNT_LIGHT_NECKLACE = 1;
         private const int MAX_COUNT_DOCTRINE_STONE = 24;//max is 24 as of the unholy alliance update
         private const int MAX_COUNT_TALISMAN_PIECES = 12;//max is 12 as of the unholy alliance update
+
+        public static string GetShopLabelByItemType(InventoryItem.ITEM_TYPE itemType)
+        {
+            //this check is attempting to preserve functionality of the original code that was doing a null check on the category.MostRecentItem
+            //since i have implemented this function to take the place of that piece, it made sense to move it in here.
+            //but i never saw the case where the value was null, so this is mostly just a precaution
+            if (itemType == null)
+            {
+                return "";
+            }
+
+            //depending on the item type, get the existing localized string for the item, or get a replacement string that better suits it
+            switch (itemType)
+            {
+                case InventoryItem.ITEM_TYPE.FOUND_ITEM_DECORATION_ALT:
+                    return LocalizationManager.GetTranslation(string.Format("Inventory/{0}", InventoryItem.ITEM_TYPE.FOUND_ITEM_DECORATION));
+                default:
+                    return LocalizationManager.GetTranslation(string.Format("Inventory/{0}", itemType));
+            }
+        }
 
         public static bool CheckForBoughtQuantityWarning(TraderTrackerItems chosenItem)
         {
@@ -155,7 +176,6 @@ namespace MysticAssistant
 
             TraderTrackerItems decorationTTI = new TraderTrackerItems
             {
-                //skins are added to the player in DataManager SetFollowerSkinUnlocked
                 //item_type id 164
                 itemForTrade = InventoryItem.ITEM_TYPE.FOUND_ITEM_DECORATION_ALT,
                 BuyPrice = 1,

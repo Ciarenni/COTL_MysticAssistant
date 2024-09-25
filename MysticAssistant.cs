@@ -90,9 +90,10 @@ namespace MysticAssistant
                 }
                 else
                 {
-                    //set up the label for the selected item using a localized string (_contextString), the localized name of the most recent item highlighted/selected,
-                    //the image of the currency item (god tear for this mod), the actual cost (along with current quantity of currency item), and sticking the _additionalText on the end
-                    ____buttonPromptText.text = string.Format(____contextString, InventoryItem.LocalizedName(____category.MostRecentItem) ?? "", CostFormatter.FormatCost(InventoryItem.ITEM_TYPE.GOD_TEAR, traderTrackerItems.SellPriceActual, true, false)) + ____addtionalText;
+                    //set up the label for the selected item using a localized string (_contextString), the localized name of the most recent item highlighted/selected
+                    //which are routed through a mod helper to solve issues with some shop items not having friendly names, the image of the currency item (god tear for this mod),
+                    //the actual cost (along with current quantity of currency item), and sticking the _additionalText on the end
+                    ____buttonPromptText.text = string.Format(____contextString, MysticAssistantInventoryInfo.GetShopLabelByItemType(____category.MostRecentItem), CostFormatter.FormatCost(InventoryItem.ITEM_TYPE.GOD_TEAR, traderTrackerItems.SellPriceActual, true, false)) + ____addtionalText;
                 }
                 return false;
             }
