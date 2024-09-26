@@ -478,6 +478,7 @@ namespace MysticAssistant
 
         private static void ShowUnlockedTarotCards()
         {
+            //similar to the decorations screen, the tarot cards screen is capable of showing multiple new unlocks in a row, so open it showing the list of newly unlocked cards
             UITarotCardsMenuController uitarotCardsMenuController = MonoSingleton<UIManager>.Instance.TarotCardsMenuTemplate.Instantiate();
             uitarotCardsMenuController.Show(_unlockedTarotCards.ToArray());
         }
