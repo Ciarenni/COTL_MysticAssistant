@@ -1,6 +1,5 @@
 ﻿using BepInEx;
 using HarmonyLib;
-using I2.Loc;
 using Lamb.UI;
 using Lamb.UI.BuildMenu;
 using MMTools;
@@ -27,6 +26,7 @@ namespace MysticAssistant
         private static bool _showOverbuyWarning = false;
         private static List<StructureBrain.TYPES> _unlockedDecorations = new List<StructureBrain.TYPES>();
         private static List<TarotCards.Card> _unlockedTarotCards = new List<TarotCards.Card>();
+        private static List<RelicType> _unlockedRelics = new List<RelicType>();
 
         private void Awake()
         {
@@ -197,10 +197,11 @@ namespace MysticAssistant
             Console.WriteLine("mystic assistant secondary action applied to mystic shop");
             //reset the inventory manager each time the shop is accessed, to make sure we have the most up to date information
             _inventoryManager.ResetInventory();
-            //clear out any possible remaining post-screen actions
+            //clear out post-screen actions and lists of unlocked items
             _postShopActions.Clear();
             _unlockedDecorations.Clear();
             _unlockedTarotCards.Clear();
+            _unlockedRelics.Clear();
 
             //for reasons unknown to me, even though this method is specified to be prefixed to Interaction_MysticShop,
             //it is being added to other interactions as well. it was reported that the shop popped up when using the
@@ -393,6 +394,23 @@ namespace MysticAssistant
                         _inventoryManager.SetBoughtTarotCardFlag(true);
                     }
                     break;
+
+                //this is actually for relics despite the item_type
+                case InventoryItem.ITEM_TYPE.SOUL_FRAGMENT:
+                    int relicIndex = UnityEngine.Random.Range(0, _inventoryManager.GetItemListCountByItemType(boughtItemType) - 1);
+                    RelicType relic = _inventoryManager.GetRelicByIndex(relicIndex);
+                    DataManager.UnlockRelic(relic);
+                    _unlockedRelics.Add(relic);
+
+                    _inventoryManager.RemoveItemFromListByTypeAndIndex(boughtItemType, relicIndex);
+                    _inventoryManager.ChangeShopStockByQuantity(boughtItemType, -1);
+
+                    if (!_inventoryManager.BoughtRelic)
+                    {
+                        _postShopActions.Add(ShowUnlockedRelics);
+                        _inventoryManager.SetBoughtRelicFlag(true);
+                    }
+                    break;
             }
             //play a pop sound
             UIManager.PlayAudio("event:/followers/pop_in");
@@ -481,6 +499,13 @@ namespace MysticAssistant
             //similar to the decorations screen, the tarot cards screen is capable of showing multiple new unlocks in a row, so open it showing the list of newly unlocked cards
             UITarotCardsMenuController uitarotCardsMenuController = MonoSingleton<UIManager>.Instance.TarotCardsMenuTemplate.Instantiate();
             uitarotCardsMenuController.Show(_unlockedTarotCards.ToArray());
+        }
+
+        private static void ShowUnlockedRelics()
+        {
+            //similar to the decorations screen, the tarot cards screen is capable of showing multiple new unlocks in a row, so open it showing the list of newly unlocked cards
+            UIRelicMenuController uirelicMenuController = MonoSingleton<UIManager>.Instance.RelicMenuTemplate.Instantiate();
+            uirelicMenuController.Show(_unlockedRelics);
         }
 
         private static void SetMysticShopInteractable(Interaction_MysticShop instance, bool activeFlag)

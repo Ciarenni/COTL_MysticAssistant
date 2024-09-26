@@ -25,6 +25,9 @@ namespace MysticAssistant
             {
                 case InventoryItem.ITEM_TYPE.FOUND_ITEM_DECORATION_ALT:
                     return LocalizationManager.GetTranslation(string.Format("Inventory/{0}", InventoryItem.ITEM_TYPE.FOUND_ITEM_DECORATION));
+                //this is actually for relics despite the item_type
+                case InventoryItem.ITEM_TYPE.SOUL_FRAGMENT:
+                    return "Relic";//i have no idea where they have the actual location of the localization string for "relic" so this is just gonna be hard-coded
                 default:
                     return LocalizationManager.GetTranslation(string.Format("Inventory/{0}", itemType));
             }
@@ -196,6 +199,20 @@ namespace MysticAssistant
                 LastDayChecked = TimeManager.CurrentDay
             };
 
+            //the relic ITEM_TYPE does not have an associated icon, which makes sense as the original mystic shop just uses an image of the actual relic you would be getting,
+            //i needed something to be the icon that isn't just a white square. i chose the soul_fragment as i dont think that is something that is readily available to players
+            //so it will not be immediately confused for something that it is not
+            TraderTrackerItems relicTTI = new TraderTrackerItems
+            {
+                //item_type id 27
+                itemForTrade = InventoryItem.ITEM_TYPE.SOUL_FRAGMENT,
+                BuyPrice = 1,
+                BuyOffset = 0,
+                SellPrice = 1,
+                SellOffset = 0,
+                LastDayChecked = TimeManager.CurrentDay
+            };
+
             var ttiList = new List<TraderTrackerItems>
             {
                 necklaceGoldSkullTTI,
@@ -208,7 +225,8 @@ namespace MysticAssistant
                 talismanTTI,
                 followerSkinTTI,
                 decorationTTI,
-                tarotCardTTI
+                tarotCardTTI,
+                relicTTI
             };
 
             return ttiList;

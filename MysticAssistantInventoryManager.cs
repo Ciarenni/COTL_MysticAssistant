@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 
 namespace MysticAssistant
@@ -16,7 +15,11 @@ namespace MysticAssistant
 
         public bool BoughtTarotCard { get; private set; }
 
+        public bool BoughtRelic { get; private set; }
+
         private List<InventoryItem> _shopInventory = new List<InventoryItem>();
+
+        private List<InventoryItem.ITEM_TYPE> _limitedStockTypes = new List<InventoryItem.ITEM_TYPE>();
 
         private List<string> _followerSkinsAvailableFromMysticShop = new List<string>();
 
@@ -24,7 +27,7 @@ namespace MysticAssistant
 
         private List<TarotCards.Card> _tarotCardsAvailableFromMysticShop = new List<TarotCards.Card>();
 
-        private List<InventoryItem.ITEM_TYPE> _limitedStockTypes = new List<InventoryItem.ITEM_TYPE>();
+        private List<RelicType> _relicsAvailableFromMysticShop = new List<RelicType>();
 
         public MysticAssistantInventoryManager()
         {
@@ -36,7 +39,9 @@ namespace MysticAssistant
             _followerSkinsAvailableFromMysticShop.Clear();
             _decorationsAvailableFromMysticShop.Clear();
             _tarotCardsAvailableFromMysticShop.Clear();
+            _relicsAvailableFromMysticShop.Clear();
             _shopInventory.Clear();
+            _limitedStockTypes.Clear();
 
             PopulateShopInventory();
             SetAllBoughtFlags(false);
@@ -49,6 +54,7 @@ namespace MysticAssistant
             PopulateFollowerSkinShopList();
             PopulateDecorationShopList();
             PopulateTarotCardShopList();
+            PopulateRelicShopList();
 
             foreach (TraderTrackerItems item in MysticAssistantInventoryInfo.GetMysticAssistantShopItemTypeList())
             {
@@ -106,6 +112,23 @@ namespace MysticAssistant
             _limitedStockTypes.Add(InventoryItem.ITEM_TYPE.TRINKET_CARD);
         }
 
+        private void PopulateRelicShopList()
+        {
+            //unlike the other limited stock items, it seems there's no DataManager list managing what relics are available from the mystic shop
+            //they are just hard coded in the original code almost exactly like how i have them here
+            if (!DataManager.Instance.PlayerFoundRelics.Contains(RelicType.SpawnBlackGoop))
+            {
+                _relicsAvailableFromMysticShop.Add(RelicType.SpawnBlackGoop);
+            }
+
+            if (!DataManager.Instance.PlayerFoundRelics.Contains(RelicType.UnlimitedFervour))
+            {
+                _relicsAvailableFromMysticShop.Add(RelicType.UnlimitedFervour);
+            }
+
+            _limitedStockTypes.Add(InventoryItem.ITEM_TYPE.SOUL_FRAGMENT);
+        }
+
         #endregion
 
         #region Shop inventory functions
@@ -135,6 +158,9 @@ namespace MysticAssistant
                     return _decorationsAvailableFromMysticShop.Count;
                 case InventoryItem.ITEM_TYPE.TRINKET_CARD:
                     return _tarotCardsAvailableFromMysticShop.Count;
+                //this is actually for relics despite the item_type
+                case InventoryItem.ITEM_TYPE.SOUL_FRAGMENT:
+                    return _relicsAvailableFromMysticShop.Count;
                 default:
                     return -1;
             }
@@ -152,6 +178,10 @@ namespace MysticAssistant
                     break;
                 case InventoryItem.ITEM_TYPE.TRINKET_CARD:
                     _tarotCardsAvailableFromMysticShop.RemoveAt(index);
+                    break;
+                //this is actually for relics despite the item_type
+                case InventoryItem.ITEM_TYPE.SOUL_FRAGMENT:
+                    _relicsAvailableFromMysticShop.RemoveAt(index);
                     break;
             }
         }
@@ -171,6 +201,11 @@ namespace MysticAssistant
             return _tarotCardsAvailableFromMysticShop[index];
         }
 
+        public RelicType GetRelicByIndex(int index)
+        {
+            return _relicsAvailableFromMysticShop[index];
+        }
+
         #endregion
 
         #region Post shop screen flags
@@ -182,6 +217,7 @@ namespace MysticAssistant
             BoughtFollowerSkin = flag;
             BoughtDecoration = flag;
             BoughtTarotCard = flag;
+            BoughtRelic = flag;
         }
 
         public void SetBoughtKeyPieceFlag(bool showFlag)
@@ -207,6 +243,11 @@ namespace MysticAssistant
         public void SetBoughtTarotCardFlag(bool showFlag)
         {
             BoughtTarotCard = showFlag;
+        }
+
+        public void SetBoughtRelicFlag(bool showFlag)
+        {
+            BoughtRelic = showFlag;
         }
 
         #endregion
