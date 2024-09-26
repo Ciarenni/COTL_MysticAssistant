@@ -24,8 +24,9 @@ namespace MysticAssistant
         private static MysticAssistantInventoryManager _inventoryManager = new MysticAssistantInventoryManager();
         //create a list of actions to run through when the shop is closed, such as the talisman piece adding screen or the crystal doctrine tutorial
         private static List<Action> _postShopActions = new List<Action>();
-        private static List<StructureBrain.TYPES> _unlockedDecorations = new List<StructureBrain.TYPES>();
         private static bool _showOverbuyWarning = false;
+        private static List<StructureBrain.TYPES> _unlockedDecorations = new List<StructureBrain.TYPES>();
+        private static List<TarotCards.Card> _unlockedTarotCards = new List<TarotCards.Card>();
 
         private void Awake()
         {
@@ -199,6 +200,7 @@ namespace MysticAssistant
             //clear out any possible remaining post-screen actions
             _postShopActions.Clear();
             _unlockedDecorations.Clear();
+            _unlockedTarotCards.Clear();
 
             //for reasons unknown to me, even though this method is specified to be prefixed to Interaction_MysticShop,
             //it is being added to other interactions as well. it was reported that the shop popped up when using the
@@ -343,11 +345,11 @@ namespace MysticAssistant
                 //      every decoration
                 //would be quite the lengthy list, especially visually. this is the compromise i have settled on.
                 case InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN:
-                    int skinIndex = UnityEngine.Random.Range(0, _inventoryManager.GetCountOfAvailableFollowerSkins() - 1);
+                    int skinIndex = UnityEngine.Random.Range(0, _inventoryManager.GetItemListCountByItemType(boughtItemType) - 1);
                     string skinToUnlock = _inventoryManager.GetFollowerSkinNameByIndex(skinIndex);
                     DataManager.SetFollowerSkinUnlocked(skinToUnlock);
 
-                    _inventoryManager.RemoveFollowerSkinFromShopList(skinToUnlock);
+                    _inventoryManager.RemoveItemFromListByTypeAndIndex(boughtItemType, skinIndex);
                     _inventoryManager.ChangeShopStockByQuantity(boughtItemType, -1);
 
                     if (!_inventoryManager.BoughtFollowerSkin)
@@ -357,23 +359,38 @@ namespace MysticAssistant
                     }
                     break;
 
-                //TODO add some custom shop text dictionary for ITEM_TYPE/string, as the decoration label does not display correct
-                //from InventoryItem, look at this:
-                //LocalizationManager.GetTranslation(string.Format("Inventory/{0}", InventoryItem.ITEM_TYPE.FOUND_ITEM_DECORATION))
                 case InventoryItem.ITEM_TYPE.FOUND_ITEM_DECORATION_ALT:
-                    int decoIndex = UnityEngine.Random.Range(0, _inventoryManager.GetCountOfAvailableDecorations() - 1);
+                    int decoIndex = UnityEngine.Random.Range(0, _inventoryManager.GetItemListCountByItemType(boughtItemType) - 1);
                     StructureBrain.TYPES deco = _inventoryManager.GetDecorationByIndex(decoIndex);
                     StructuresData.CompleteResearch(deco);
                     StructuresData.SetRevealed(deco);
                     _unlockedDecorations.Add(deco);
 
-                    _inventoryManager.RemoveDecorationFromShopList(deco);
+                    _inventoryManager.RemoveItemFromListByTypeAndIndex(boughtItemType, decoIndex);
                     _inventoryManager.ChangeShopStockByQuantity(boughtItemType, -1);
 
                     if (!_inventoryManager.BoughtDecoration)
                     {
                         _postShopActions.Add(ShowUnlockedDecorations);
                         _inventoryManager.SetBoughtDecorationFlag(true);
+                    }
+                    break;
+
+                case InventoryItem.ITEM_TYPE.TRINKET_CARD:
+                    int cardIndex = UnityEngine.Random.Range(0, _inventoryManager.GetItemListCountByItemType(boughtItemType) - 1);
+                    TarotCards.Card card = _inventoryManager.GetTarotCardByIndex(cardIndex);
+                    //you might notice there's no code here to actually unlock the selected tarot card for the player.
+                    //this is because tarot cards are unlocked during the Show() method in the UITarotCardsMenuController.
+                    //since im already leveraging that to show the unlocked tarot cards when the shop closes, im just letting that code do the unlocking
+                    _unlockedTarotCards.Add(card);
+
+                    _inventoryManager.RemoveItemFromListByTypeAndIndex(boughtItemType, cardIndex);
+                    _inventoryManager.ChangeShopStockByQuantity(boughtItemType, -1);
+
+                    if (!_inventoryManager.BoughtTarotCard)
+                    {
+                        _postShopActions.Add(ShowUnlockedTarotCards);
+                        _inventoryManager.SetBoughtTarotCardFlag(true);
                     }
                     break;
             }
@@ -457,6 +474,12 @@ namespace MysticAssistant
             //found this in the UI.BuildMenu collection, this actually shows the screen with buildings on it, rather than the "new item get, lamb float" pop up
             UIBuildMenuController buildMenuController = MonoSingleton<UIManager>.Instance.BuildMenuTemplate.Instantiate();
             buildMenuController.Show(_unlockedDecorations);
+        }
+
+        private static void ShowUnlockedTarotCards()
+        {
+            UITarotCardsMenuController uitarotCardsMenuController = MonoSingleton<UIManager>.Instance.TarotCardsMenuTemplate.Instantiate();
+            uitarotCardsMenuController.Show(_unlockedTarotCards.ToArray());
         }
 
         private static void SetMysticShopInteractable(Interaction_MysticShop instance, bool activeFlag)

@@ -185,6 +185,17 @@ namespace MysticAssistant
                 LastDayChecked = TimeManager.CurrentDay
             };
 
+            TraderTrackerItems tarotCardTTI = new TraderTrackerItems
+            {
+                //item_type id 26
+                itemForTrade = InventoryItem.ITEM_TYPE.TRINKET_CARD,
+                BuyPrice = 1,
+                BuyOffset = 0,
+                SellPrice = 1,
+                SellOffset = 0,
+                LastDayChecked = TimeManager.CurrentDay
+            };
+
             var ttiList = new List<TraderTrackerItems>
             {
                 necklaceGoldSkullTTI,
@@ -196,7 +207,8 @@ namespace MysticAssistant
                 crystalDoctrineStoneTTI,
                 talismanTTI,
                 followerSkinTTI,
-                decorationTTI
+                decorationTTI,
+                tarotCardTTI
             };
 
             return ttiList;

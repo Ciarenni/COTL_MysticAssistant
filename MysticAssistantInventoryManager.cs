@@ -14,11 +14,17 @@ namespace MysticAssistant
 
         public bool BoughtDecoration { get; private set; }
 
+        public bool BoughtTarotCard { get; private set; }
+
+        private List<InventoryItem> _shopInventory = new List<InventoryItem>();
+
         private List<string> _followerSkinsAvailableFromMysticShop = new List<string>();
 
         private List<StructureBrain.TYPES> _decorationsAvailableFromMysticShop = new List<StructureBrain.TYPES>();
 
-        private List<InventoryItem> _shopInventory = new List<InventoryItem>();
+        private List<TarotCards.Card> _tarotCardsAvailableFromMysticShop = new List<TarotCards.Card>();
+
+        private List<InventoryItem.ITEM_TYPE> _limitedStockTypes = new List<InventoryItem.ITEM_TYPE>();
 
         public MysticAssistantInventoryManager()
         {
@@ -29,6 +35,7 @@ namespace MysticAssistant
         {
             _followerSkinsAvailableFromMysticShop.Clear();
             _decorationsAvailableFromMysticShop.Clear();
+            _tarotCardsAvailableFromMysticShop.Clear();
             _shopInventory.Clear();
 
             PopulateShopInventory();
@@ -41,18 +48,15 @@ namespace MysticAssistant
         {
             PopulateFollowerSkinShopList();
             PopulateDecorationShopList();
+            PopulateTarotCardShopList();
 
             foreach (TraderTrackerItems item in MysticAssistantInventoryInfo.GetMysticAssistantShopItemTypeList())
             {
                 //set the limited stock on items that are not infinite.
                 //talisman pieces and doctrine stones will count as infinite as buying more than is normally offered is part of the intended QoL of this mod
-                if (item.itemForTrade == InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN)
+                if(_limitedStockTypes.Contains(item.itemForTrade))
                 {
-                    _shopInventory.Add(new InventoryItem(item.itemForTrade, _followerSkinsAvailableFromMysticShop.Count));
-                }
-                else if (item.itemForTrade == InventoryItem.ITEM_TYPE.FOUND_ITEM_DECORATION_ALT)
-                {
-                    _shopInventory.Add(new InventoryItem(item.itemForTrade, _decorationsAvailableFromMysticShop.Count));
+                    _shopInventory.Add(new InventoryItem(item.itemForTrade, GetItemListCountByItemType(item.itemForTrade)));
                 }
                 else
                 {
@@ -71,6 +75,8 @@ namespace MysticAssistant
                     _followerSkinsAvailableFromMysticShop.Add(skinString);
                 }
             }
+
+            _limitedStockTypes.Add(InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN);
         }
 
         private void PopulateDecorationShopList()
@@ -78,13 +84,26 @@ namespace MysticAssistant
             //loop over the list of decorations available from the mystic shop, if a given decoration is not unlocked, add it to the shop stock
             foreach (StructureBrain.TYPES deco in DataManager.MysticShopKeeperDecorations.ToList())
             {
-                Console.WriteLine("possible shop decoration: " + deco.ToString());
                 if (!DataManager.Instance.UnlockedStructures.Contains(deco))
                 {
-                    Console.WriteLine("is not unlocked, adding to inventory");
                     _decorationsAvailableFromMysticShop.Add(deco);
                 }
             }
+
+            _limitedStockTypes.Add(InventoryItem.ITEM_TYPE.FOUND_ITEM_DECORATION_ALT);
+        }
+
+        private void PopulateTarotCardShopList()
+        {
+            foreach (TarotCards.Card card in TarotCards.MysticCards)
+            {
+                if (!DataManager.Instance.PlayerFoundTrinkets.Contains(card))
+                {
+                    _tarotCardsAvailableFromMysticShop.Add(card);
+                }
+            }
+
+            _limitedStockTypes.Add(InventoryItem.ITEM_TYPE.TRINKET_CARD);
         }
 
         #endregion
@@ -96,19 +115,50 @@ namespace MysticAssistant
             return _shopInventory;
         }
 
+        public void ChangeShopStockByQuantity(InventoryItem.ITEM_TYPE itemType, int quantity)
+        {
+            _shopInventory.First(s => s.type == (int)itemType).quantity += quantity;
+        }
+
+        //this function and the RemoveItemFromList function are kind of half-assed generic functions so i didnt have to make a whole bunch of different functions that
+        //all did the same thing on different lists. the thing that keeps me from being able to do that without a generic is that each of the lists returns a different type of object.
+        //unfortunately, i could not make an actual generic class that worked with all of these because when i tried that the whole thing just didnt work.
+        //the secondary interaction wasnt even available on the mystic shop. so it broke the whole mod and i didnt feel it was worth the time and effort
+        //to troubleshoot and figure it out when i can just do this and not break the entire mod
+        public int GetItemListCountByItemType(InventoryItem.ITEM_TYPE itemType)
+        {
+            switch(itemType)
+            {
+                case InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN:
+                    return _followerSkinsAvailableFromMysticShop.Count;
+                case InventoryItem.ITEM_TYPE.FOUND_ITEM_DECORATION_ALT:
+                    return _decorationsAvailableFromMysticShop.Count;
+                case InventoryItem.ITEM_TYPE.TRINKET_CARD:
+                    return _tarotCardsAvailableFromMysticShop.Count;
+                default:
+                    return -1;
+            }
+        }
+
+        public void RemoveItemFromListByTypeAndIndex(InventoryItem.ITEM_TYPE itemType, int index)
+        {
+            switch (itemType)
+            {
+                case InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN:
+                    _followerSkinsAvailableFromMysticShop.RemoveAt(index);
+                    break;
+                case InventoryItem.ITEM_TYPE.FOUND_ITEM_DECORATION_ALT:
+                    _decorationsAvailableFromMysticShop.RemoveAt(index);
+                    break;
+                case InventoryItem.ITEM_TYPE.TRINKET_CARD:
+                    _tarotCardsAvailableFromMysticShop.RemoveAt(index);
+                    break;
+            }
+        }
+
         public string GetFollowerSkinNameByIndex(int index)
         {
             return _followerSkinsAvailableFromMysticShop[index];
-        }
-
-        public int GetCountOfAvailableFollowerSkins()
-        {
-            return _followerSkinsAvailableFromMysticShop.Count;
-        }
-
-        public void RemoveFollowerSkinFromShopList(string skinName)
-        {
-            _followerSkinsAvailableFromMysticShop.Remove(skinName);
         }
 
         public StructureBrain.TYPES GetDecorationByIndex(int index)
@@ -116,19 +166,9 @@ namespace MysticAssistant
             return _decorationsAvailableFromMysticShop[index];
         }
 
-        public int GetCountOfAvailableDecorations()
+        public TarotCards.Card GetTarotCardByIndex(int index)
         {
-            return _decorationsAvailableFromMysticShop.Count;
-        }
-
-        public void RemoveDecorationFromShopList(StructureBrain.TYPES deco)
-        {
-            _decorationsAvailableFromMysticShop.Remove(deco);
-        }
-
-        public void ChangeShopStockByQuantity(InventoryItem.ITEM_TYPE itemType, int quantity)
-        {
-            _shopInventory.First(s => s.type == (int)itemType).quantity += quantity;
+            return _tarotCardsAvailableFromMysticShop[index];
         }
 
         #endregion
@@ -141,6 +181,7 @@ namespace MysticAssistant
             BoughtCrystalDoctrineStone = flag;
             BoughtFollowerSkin = flag;
             BoughtDecoration = flag;
+            BoughtTarotCard = flag;
         }
 
         public void SetBoughtKeyPieceFlag(bool showFlag)
@@ -161,6 +202,11 @@ namespace MysticAssistant
         public void SetBoughtDecorationFlag(bool showFlag)
         {
             BoughtDecoration = showFlag;
+        }
+
+        public void SetBoughtTarotCardFlag(bool showFlag)
+        {
+            BoughtTarotCard = showFlag;
         }
 
         #endregion
