@@ -2,7 +2,7 @@
 This is a mod for Cult of the Lamb to buy specific rewards from the shop that unlocks when you beat the base game.
 If you've played the post-game in Relics of the Old Faith, you'll be familiar with this:
 
-![image](https://user-images.githubusercontent.com/79609448/236652143-854e2a1b-e8c7-4845-bd86-89ef8809f727.png)
+![v2 0 wheel reward edit](https://github.com/user-attachments/assets/f2cea9af-34a3-44e3-9edd-b130dda8428a)
 
 This was a wonderful addition to the game, but 3 of the 4 options on the wheel have limited stock by design. The only one that doesn't is the necklace option.
 Once all the other options are exhausted, the wheel offers refined stone, refined lumber, meat, and a random necklace from it's pool.
@@ -33,7 +33,7 @@ The long answer for this is very technical. The short answer is that there is no
 
 **Why is the shop bleating at me and giving me a warning when buying certain items?**
 
-Certain items in the Mystic Assistant shop are being made available when they would no longer be available normally. This includes: talisman pieces, the dark neckace, and the light necklace.
+Certain items in the Mystic Assistant shop are being made available when they would no longer be available normally. This includes: talisman pieces, the dark necklace, and the light necklace.
 I did not want the player to recklessly spend their god tears on something that would no longer be of use to them, but I also did not want to prevent the player from buying them if they really wanted to.
 So I added the warning. The bleat is to help grab your attention for the warning.
 
