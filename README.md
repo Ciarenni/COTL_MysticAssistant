@@ -2,7 +2,7 @@
 This is a mod for Cult of the Lamb to buy specific rewards from the shop that unlocks when you beat the base game.
 If you've played the post-game in Relics of the Old Faith, you'll be familiar with this:
 
-![v2 0 wheel reward edit](https://github.com/user-attachments/assets/f2cea9af-34a3-44e3-9edd-b130dda8428a)
+![v2 0 wheel reward edit smaller](https://github.com/user-attachments/assets/73eeabe7-4992-4f63-8934-1ec6d8da5ade)
 
 This was a wonderful addition to the game, but 3 of the 4 options on the wheel have limited stock by design. The only one that doesn't is the necklace option.
 Once all the other options are exhausted, the wheel offers refined stone, refined lumber, meat, and a random necklace from it's pool.
