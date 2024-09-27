@@ -52,6 +52,8 @@ namespace MysticAssistant
             PopulateRelicShopList();
 
             int shopStock;
+            //use this list to sort the out of stock items to the end of the shop list
+            List<InventoryItem.ITEM_TYPE> outOfStockList = new List<InventoryItem.ITEM_TYPE>();
             foreach (TraderTrackerItems item in MysticAssistantInventoryInfo.GetMysticAssistantShopItemTypeList())
             {
                 //if a quantity is not set, it will default to 1, and that is confusing, so set the stock of everything to 99.
@@ -63,6 +65,11 @@ namespace MysticAssistant
                 if(_limitedStockTypes.Contains(item.itemForTrade))
                 {
                     shopStock = GetItemListCountByItemType(item.itemForTrade);
+                    if(shopStock == 0)
+                    {
+                        outOfStockList.Add(item.itemForTrade);
+                        continue;
+                    }
                 }
                 else if(item.itemForTrade == InventoryItem.ITEM_TYPE.BLACK_GOLD)
                 {
@@ -70,6 +77,14 @@ namespace MysticAssistant
                 }
 
                 _shopInventory.Add(new InventoryItem(item.itemForTrade, shopStock));
+            }
+
+            //this is certainly not the best way to do this, you could make some kind of tuple list with the item_type and the stock and sort that by stock and populate the shop list using that
+            //but this is kind of a last minute addition to what i expect to really be the last major (and maybe even minor) update to this mod
+            //so im going to be a bit lazy and not do a big overhaul to support that when this works just fine
+            foreach (InventoryItem.ITEM_TYPE outOfStockItem in outOfStockList)
+            {
+                _shopInventory.Add(new InventoryItem(outOfStockItem, 0));
             }
         }
 
