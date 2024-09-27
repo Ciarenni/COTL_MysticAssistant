@@ -11,7 +11,7 @@ This was tedious and time-consuming, especially when I really only wanted a spec
 
 So I wrote this mod!
 
-At the time, I had grand plans to add the items besides the necklaces to the shop, the crystal doctrine stones, the talisman fragments, etc., but those had more challenges to them than the necklaces and I had to abandon the project for a time.
+At the time, I had grand plans to add the items besides the necklaces to the shop, the forgotten commandment stones, the talisman pieces, etc., but those had more challenges to them than the necklaces and I had to abandon the project for a time.
 When the Unholy Alliance update came out, the addition of couch co-op functionality broke the mod entirely. I got a fix out for that issue, and decided that it was time for me to pick the project back up.
 I learned that more items had been added to the Mystic Seller in intervening updates that I had not played, and I couldn't very well exclude those.
 
@@ -30,6 +30,18 @@ Because there are 14 skins, 11, decorations, 8 tarot cards, and 2 relics that ca
 **Why is the icon for relics a little blue thing?**
 
 The long answer for this is very technical. The short answer is that there is no generic icon for a relic like there is for, say, a follower skin. Even individual relics don't have an icon that can be used by the game's shop UI. So I picked something that didn't look like it would be confused with anything else.
+
+**Why is the shop bleating at me and giving me a warning when buying certain items?**
+
+Certain items in the Mystic Assistant shop are being made available when they would no longer be available normally. This includes: talisman pieces, the dark neckace, and the light necklace.
+I did not want the player to recklessly spend their god tears on something that would no longer be of use to them, but I also did not want to prevent the player from buying them if they really wanted to.
+So I added the warning. The bleat is to help grab your attention for the warning.
+
+For the talisman pieces, these are available from a variety of tasks and places in the game, some of which are only available from the Mystic Seller and are no longer a prize once all of those have been obtained.
+If the player wants to get talisman pieces for fleeces, but does not want to do those other activities, this is a way to make that happen.
+
+For the necklaces, normally only one of each is available and they are each used for an in-game event (vague to avoid spoilers) but that event can only occur once, even if you hacked your save and gave yourself more of the necklace.
+Changing that is not the intent of this mod, and since there is no harm in offering more of those necklaces, I do so. Just know that they will be (or should be, unless something in the game breaks) entirely cosmetic.
 
 **Don't you think that allowing players to easily get a necklace to make followers immortal is really broken?**
 
