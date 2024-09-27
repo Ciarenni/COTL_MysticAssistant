@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using HarmonyLib;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace MysticAssistant
@@ -24,9 +25,14 @@ namespace MysticAssistant
 
         private List<RelicType> _relicsAvailableFromMysticShop = new List<RelicType>();
 
-        public MysticAssistantInventoryManager()
+        private int maxCountCrystalDoctrineStone = 24;//default to 24 as that is the max as of the unholy alliance update
+
+        public MysticAssistantInventoryManager(Interaction_MysticShop instance)
         {
             ResetInventory();
+            //get the max amount of doctrine stones a player is allowed to buy from the mystic shop from the private variable on the Interaction_MysticShop that controls this.
+            //this should support future updates adding more crystal doctrine stones automatically as long as they dont change the variable name
+            maxCountCrystalDoctrineStone = (int)Traverse.Create(instance).Field("maxAmountOfCrystalDoctrines").GetValue();
         }
 
         public void ResetInventory()
@@ -66,6 +72,17 @@ namespace MysticAssistant
                 {
                     shopStock = GetItemListCountByItemType(item.itemForTrade);
                     if(shopStock == 0)
+                    {
+                        outOfStockList.Add(item.itemForTrade);
+                        continue;
+                    }
+                }
+                //set the stock for crystal doctrine stones. i had previously made these infinitely available, thinking of them like talisman pieces, but these are
+                //more like the other limited stock items as they only come from the shop
+                else if(item.itemForTrade == InventoryItem.ITEM_TYPE.CRYSTAL_DOCTRINE_STONE)
+                {
+                    shopStock = maxCountCrystalDoctrineStone - DataManager.Instance.CrystalDoctrinesReceivedFromMysticShop;
+                    if (shopStock == 0)
                     {
                         outOfStockList.Add(item.itemForTrade);
                         continue;

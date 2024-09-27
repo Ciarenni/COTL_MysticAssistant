@@ -20,7 +20,7 @@ namespace MysticAssistant
     {
         private static readonly Type patchType = typeof(MysticAssistant);
         private static string SHOP_CONTEXT_KEY = "mystic_assistant_shop";
-        private static MysticAssistantInventoryManager _inventoryManager = new MysticAssistantInventoryManager();
+        private static MysticAssistantInventoryManager _inventoryManager;
         //create a list of actions to run through when the shop is closed, such as the talisman piece adding screen or the crystal doctrine tutorial
         private static List<Action> _postShopActions = new List<Action>();
         private static bool _showOverbuyWarning = false;
@@ -218,7 +218,7 @@ namespace MysticAssistant
 
             Console.WriteLine("mystic assistant secondary action applied to mystic shop");
             //reset the inventory manager each time the shop is accessed, to make sure we have the most up to date information
-            _inventoryManager.ResetInventory();
+            _inventoryManager = new MysticAssistantInventoryManager(__instance);
             //clear out post-screen actions and lists of unlocked items
             _postShopActions.Clear();
             _unlockedDecorations.Clear();
@@ -339,6 +339,7 @@ namespace MysticAssistant
 
                 case InventoryItem.ITEM_TYPE.CRYSTAL_DOCTRINE_STONE:
                     Inventory.ChangeItemQuantity((int)boughtItemType, 1, 0);
+                    _inventoryManager.ChangeShopStockByQuantity(boughtItemType, -1);
                     //only increment the mystic shop count tracker for doctrine stones if the player is below the current max.
                     //the current max is fetched from the private variable on the Interaction_MysticShop, so it should keep pace with future updates (as long as they dont change the name).
                     //players will still get the warning when buying them, but it will still let them buy and also increment the shop counter correctly, which should prevent any issues

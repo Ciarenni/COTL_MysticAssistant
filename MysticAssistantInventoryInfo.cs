@@ -7,7 +7,6 @@ namespace MysticAssistant
     {
         private const int MAX_COUNT_DARK_NECKLACE = 1;
         private const int MAX_COUNT_LIGHT_NECKLACE = 1;
-        private const int MAX_COUNT_DOCTRINE_STONE = 24;//max is 24 as of the unholy alliance update
         private const int MAX_COUNT_TALISMAN_PIECES = 12;//max is 12 as of the unholy alliance update
 
         public static string GetShopLabelByItemType(InventoryItem.ITEM_TYPE itemType)
@@ -38,12 +37,6 @@ namespace MysticAssistant
                     break;
                 case InventoryItem.ITEM_TYPE.Necklace_Light:
                     if (DataManager.Instance.HasBaalSkin || Inventory.GetItemQuantity(InventoryItem.ITEM_TYPE.Necklace_Light) >= MAX_COUNT_LIGHT_NECKLACE)
-                    {
-                        return true;
-                    }
-                    break;
-                case InventoryItem.ITEM_TYPE.CRYSTAL_DOCTRINE_STONE:
-                    if (DataManager.Instance.CrystalDoctrinesReceivedFromMysticShop >= MAX_COUNT_DOCTRINE_STONE)
                     {
                         return true;
                     }
