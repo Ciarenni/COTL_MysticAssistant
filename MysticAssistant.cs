@@ -339,7 +339,13 @@ namespace MysticAssistant
 
                 case InventoryItem.ITEM_TYPE.CRYSTAL_DOCTRINE_STONE:
                     Inventory.ChangeItemQuantity((int)boughtItemType, 1, 0);
-                    DataManager.Instance.CrystalDoctrinesReceivedFromMysticShop++;
+                    //only increment the mystic shop count tracker for doctrine stones if the player is below the current max.
+                    //the current max is fetched from the private variable on the Interaction_MysticShop, so it should keep pace with future updates (as long as they dont change the name).
+                    //players will still get the warning when buying them, but it will still let them buy and also increment the shop counter correctly, which should prevent any issues
+                    if (DataManager.Instance.CrystalDoctrinesReceivedFromMysticShop < (int)Traverse.Create(__instance).Field("maxAmountOfCrystalDoctrines").GetValue())
+                    {
+                        DataManager.Instance.CrystalDoctrinesReceivedFromMysticShop++;
+                    }
                     //if the player has not bought a doctrine stone this visit, check if the tutorial needs to be shown, and add it to the post shop actions list if so
                     if (!_inventoryManager.BoughtCrystalDoctrineStone)
                     {
@@ -360,7 +366,13 @@ namespace MysticAssistant
 
                 case InventoryItem.ITEM_TYPE.TALISMAN:
                     Inventory.KeyPieces++;//because the talisman pieces are not in the standard inventory, their addition needs to be handled like this.
-                    DataManager.Instance.TalismanPiecesReceivedFromMysticShop++;
+                    //only increment the mystic shop count tracker for talisman pieces if the player is below the current max.
+                    //the current max is fetched from the private variable on the Interaction_MysticShop, so it should keep pace with future updates (as long as they dont change the name).
+                    //players will still get the warning when buying them, but it will still let them buy and also increment the shop counter correctly, which should prevent any issues
+                    if (DataManager.Instance.TalismanPiecesReceivedFromMysticShop < (int)Traverse.Create(__instance).Field("maxAmountOfTalismanPieces").GetValue())
+                    {
+                        DataManager.Instance.TalismanPiecesReceivedFromMysticShop++;
+                    }
                     //if the player has not bought a talisman piece this visit, add the talisman piece being added animation to the post shop actions list
                     if (!_inventoryManager.BoughtKeyPiece)
                     {
