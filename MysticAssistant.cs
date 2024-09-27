@@ -24,6 +24,8 @@ namespace MysticAssistant
         //create a list of actions to run through when the shop is closed, such as the talisman piece adding screen or the crystal doctrine tutorial
         private static List<Action> _postShopActions = new List<Action>();
         private static bool _showOverbuyWarning = false;
+        //lists of unlocked items to loop through once the mod shop is closed. there is not one for follower skins as that screen does not support
+        //showing multiple new items at once like the blueprints, tarot card, and relics screens do
         private static List<StructureBrain.TYPES> _unlockedDecorations = new List<StructureBrain.TYPES>();
         private static List<TarotCards.Card> _unlockedTarotCards = new List<TarotCards.Card>();
         private static List<RelicType> _unlockedRelics = new List<RelicType>();
@@ -40,7 +42,7 @@ namespace MysticAssistant
             harmony.Patch(AccessTools.Method(typeof(UIItemSelectorOverlayController), "RefreshContextText"), prefix: new HarmonyMethod(patchType, nameof(PrefixRefreshContextTextForAssistant)));
             harmony.Patch(AccessTools.Method(typeof(UIItemSelectorOverlayController), "OnItemSelected"), prefix: new HarmonyMethod(patchType, nameof(PrefixOnItemSelectedForAssistant)));
             harmony.Patch(AccessTools.Method(typeof(UIItemSelectorOverlayController), "OnItemClicked"), prefix: new HarmonyMethod(patchType, nameof(PrefixOnItemClickedForAssistant)));
-            harmony.Patch(AccessTools.Method(typeof(Interaction_MysticShop), "OnSecondaryInteract"), prefix: new HarmonyMethod(patchType, nameof(PrefixSecondaryInteract)));
+            harmony.Patch(AccessTools.Method(typeof(Interaction_MysticShop), "OnSecondaryInteract"), prefix: new HarmonyMethod(patchType, nameof(PrefixOnSecondaryInteract)));
         }
 
         public static void PostfixEnableMysticAssistantOnTheMysticShop(Interaction_MysticShop __instance)
@@ -59,13 +61,11 @@ namespace MysticAssistant
             string ____addtionalText,
             string ____contextString)
         {
-            Console.WriteLine("prefix for context text starting");
-
             //check the params to see if the ItemSelector being accessed is the one added in the mod.
             //no matter what, if the player is looking at the mod shop, we want to only run this modified method and always skip the authentic method
             if (____params.Key != SHOP_CONTEXT_KEY)
             {
-                Console.WriteLine("interaction is not the mystic shop, skipping");
+                Console.WriteLine("item selector interaction detected but it is not the mystic shop, skipping");
                 return true;
             }
 
@@ -94,12 +94,17 @@ namespace MysticAssistant
                     //set up the label for the selected item using a localized string (_contextString), the localized name of the most recent item highlighted/selected
                     //which are routed through a mod helper to solve issues with some shop items not having friendly names, the image of the currency item (god tear for this mod),
                     //the actual cost (along with current quantity of currency item), and sticking the _additionalText on the end
+                    if(____category == null)
+                    {
+                        //the only time the category can be null is if the _params.Key is null or an empty string. this should never be the case, but just in case, we'll check it here
+                        //the original code is doing this, so its not the worst idea to port that logic over
+                        ____buttonPromptText.text = string.Format(____contextString, "something broke, please leave the shop and try again", CostFormatter.FormatCost(InventoryItem.ITEM_TYPE.GOD_TEAR, traderTrackerItems.SellPriceActual, true, false)) + ____addtionalText;
+                    }
                     ____buttonPromptText.text = string.Format(____contextString, MysticAssistantInventoryInfo.GetShopLabelByItemType(____category.MostRecentItem), CostFormatter.FormatCost(InventoryItem.ITEM_TYPE.GOD_TEAR, traderTrackerItems.SellPriceActual, true, false)) + ____addtionalText;
                 }
                 return false;
             }
 
-            Console.WriteLine("prefix for context text ending");
             return false;
         }
 
@@ -107,6 +112,8 @@ namespace MysticAssistant
         {
             //add a prefix for the OnItemSelected so the overbuy warning flag can be reset, then proceed to the original OnItemSelected method
             //we do not need to refresh the label text here as it is done in the original method, as one might assume from changing a selection on a shop menu
+            //in theory, having a check here to see if the player is accessing the mod shop would be good, but since this is only setting a flag to false that
+            //i want to be false the majority of the time, having it reset all the time is a non-issue
             _showOverbuyWarning = false;
             return true;
         }
@@ -192,8 +199,23 @@ namespace MysticAssistant
             return false;
         }
 
-        public static void PrefixSecondaryInteract(Interaction_MysticShop __instance, StateMachine state)
+        public static void PrefixOnSecondaryInteract(Interaction_MysticShop __instance, StateMachine state)
         {
+            //i started running into an issue where the mod shop will not open up if there is a SimpleBark (text bubble) up from the mystic shop seller.
+            //after spinning the wheel, it will sometimes have a little flavour dialogue pop up and for some reason, this interferes with the secondary action
+            //on the mystic shop, but does not prevent the player from using the mystic shop normally.
+            //the work around is to bring up a menu (to close the bark) or to leave the stairs area and come back, but i discovered that the bark is in
+            //a private variable on the Interaction_MysticShop, so i am using a Harmony method to grab that private variable and determine if the bark is speaking.
+            //if it is, then start the coroutine that will set the bark to inactive and close it. i discovered through testing that there needs to be a small delay
+            //between the bark closing and when the mod shop will open or the mod shop will simply not show up. because of coroutines being asynchronous, if the bark is active
+            //i am simply exiting the method after starting the coroutine and then invoking the same method inside the coroutine after waiting a short time after closing the bark.
+            SimpleBark boughtBark = Traverse.Create(__instance).Field("boughtBark").GetValue() as SimpleBark;
+            if(boughtBark.IsSpeaking)
+            {
+                __instance.StartCoroutine(ClearShopKeeperSimpleBark(boughtBark, __instance, state));
+                return;
+            }
+
             Console.WriteLine("mystic assistant secondary action applied to mystic shop");
             //reset the inventory manager each time the shop is accessed, to make sure we have the most up to date information
             _inventoryManager.ResetInventory();
@@ -291,6 +313,13 @@ namespace MysticAssistant
         {
             //deduct the item's cost from the player's inventory of the currency
             Inventory.ChangeItemQuantity((int)InventoryItem.ITEM_TYPE.GOD_TEAR, -boughtItem.SellPriceActual, 0);
+            //the original code seems to be tracking how many rewards from the mystic shop the player is receiving, so obviously i need to make sure that happens in the mod too
+            DataManager.Instance.MysticRewardCount++;
+
+            //it is okay for shopStock to come back as 0, even though it is having 1 subtracted from it in the cases for limited stock items.
+            //this is fine because for limited stock items, if their list is empty, their shop quantity is also 0 and the UIItemSelectorOverlayController
+            //will prevent a player from proceeding with a purchase, preventing it from hitting this method.
+            int shopStock = _inventoryManager.GetItemListCountByItemType(boughtItemType);
 
             //add item to player's inventory/collection and set or adjust game flags as appropriate
             switch (boughtItemType)
@@ -316,6 +345,7 @@ namespace MysticAssistant
                         //so hopefully i read the code right and this does what i think it does! i tested it by inverting the check causing my save that would otherwise
                         //skip this if block to instead trigger it. so in theory, if someone needs to see the tutorial stuff, they will.
                         UpgradeSystem.UnlockAbility(UpgradeSystem.Type.Ritual_CrystalDoctrine, false);
+                        //invert this check if you want to do development testing on seeing the crystal doctrine tutorial, but your save file has already seen it
                         if (DataManager.Instance.TryRevealTutorialTopic(TutorialTopic.CrystalDoctrine))
                         {
                             _postShopActions.Add(ShowCrystalDoctrineTutorial);
@@ -346,7 +376,7 @@ namespace MysticAssistant
                 //      every decoration
                 //would be quite the lengthy list, especially visually. this is the compromise i have settled on.
                 case InventoryItem.ITEM_TYPE.FOUND_ITEM_FOLLOWERSKIN:
-                    int skinIndex = UnityEngine.Random.Range(0, _inventoryManager.GetItemListCountByItemType(boughtItemType) - 1);
+                    int skinIndex = UnityEngine.Random.Range(0, shopStock - 1);
                     string skinToUnlock = _inventoryManager.GetFollowerSkinNameByIndex(skinIndex);
                     DataManager.SetFollowerSkinUnlocked(skinToUnlock);
 
@@ -361,7 +391,7 @@ namespace MysticAssistant
                     break;
 
                 case InventoryItem.ITEM_TYPE.FOUND_ITEM_DECORATION_ALT:
-                    int decoIndex = UnityEngine.Random.Range(0, _inventoryManager.GetItemListCountByItemType(boughtItemType) - 1);
+                    int decoIndex = UnityEngine.Random.Range(0, shopStock - 1);
                     StructureBrain.TYPES deco = _inventoryManager.GetDecorationByIndex(decoIndex);
                     StructuresData.CompleteResearch(deco);
                     StructuresData.SetRevealed(deco);
@@ -378,7 +408,7 @@ namespace MysticAssistant
                     break;
 
                 case InventoryItem.ITEM_TYPE.TRINKET_CARD:
-                    int cardIndex = UnityEngine.Random.Range(0, _inventoryManager.GetItemListCountByItemType(boughtItemType) - 1);
+                    int cardIndex = UnityEngine.Random.Range(0, shopStock - 1);
                     TarotCards.Card card = _inventoryManager.GetTarotCardByIndex(cardIndex);
                     //you might notice there's no code here to actually unlock the selected tarot card for the player.
                     //this is because tarot cards are unlocked during the Show() method in the UITarotCardsMenuController.
@@ -397,7 +427,7 @@ namespace MysticAssistant
 
                 //this is actually for relics despite the item_type
                 case InventoryItem.ITEM_TYPE.SOUL_FRAGMENT:
-                    int relicIndex = UnityEngine.Random.Range(0, _inventoryManager.GetItemListCountByItemType(boughtItemType) - 1);
+                    int relicIndex = UnityEngine.Random.Range(0, shopStock - 1);
                     RelicType relic = _inventoryManager.GetRelicByIndex(relicIndex);
                     DataManager.UnlockRelic(relic);
                     _unlockedRelics.Add(relic);
@@ -439,10 +469,12 @@ namespace MysticAssistant
                 {
                     yield return null;
                 }
+                //giving the game a short break makes going into the next menu screen smoother
+                yield return new WaitForSecondsRealtime(0.25f);
             }
 
-            //once all the menus are closed, wait an additional second and then re-enable interactions with the Mystic Shop
-            yield return new WaitForSeconds(1);
+            //once all the menus are closed, wait an additional short amount of time and then re-enable interactions with the Mystic Shop
+            yield return new WaitForSecondsRealtime(0.5f);
             SetMysticShopInteractable(instance, true);
 
             //returns control back to the player(s) and sets them back to idle from inactive
@@ -552,6 +584,18 @@ namespace MysticAssistant
                 }
             }
             return null;
+        }
+
+        private static IEnumerator ClearShopKeeperSimpleBark(SimpleBark boughtBark, Interaction_MysticShop instance, StateMachine state)
+        {
+            //this will force close the bark of the mystic shop seller
+            boughtBark.gameObject.SetActive(false);
+            boughtBark.Close();
+            //i discovered through testing that half a second seems to be the minimum amount of time for the mod shop to open successfully after closing a bark
+            //times tested: 0.25, 0.35, 0.45
+            yield return new WaitForSecondsRealtime(0.5f);
+            //trigger the secondary interaction on the Interaction_MysticShop instance, which ironically is the method that originally called this one
+            instance.OnSecondaryInteract(state);
         }
     }
 }

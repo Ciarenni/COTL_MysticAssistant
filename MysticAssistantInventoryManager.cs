@@ -6,15 +6,10 @@ namespace MysticAssistant
     internal class MysticAssistantInventoryManager
     {
         public bool BoughtKeyPiece { get; private set; }
-
         public bool BoughtCrystalDoctrineStone { get; private set; }
-
         public bool BoughtFollowerSkin { get; private set; }
-
         public bool BoughtDecoration { get; private set; }
-
         public bool BoughtTarotCard { get; private set; }
-
         public bool BoughtRelic { get; private set; }
 
         private List<InventoryItem> _shopInventory = new List<InventoryItem>();
@@ -56,18 +51,21 @@ namespace MysticAssistant
             PopulateTarotCardShopList();
             PopulateRelicShopList();
 
+            int shopStock;
             foreach (TraderTrackerItems item in MysticAssistantInventoryInfo.GetMysticAssistantShopItemTypeList())
             {
-                //set the limited stock on items that are not infinite.
+                //if a quantity is not set, it will default to 1, and that is confusing, so set the stock of everything to 99.
+                //it doesnt matter what it is because im not subtracting from the quantity for unlimited items anyway.
+                shopStock = 99;
+
+                //if the item has a limited stock, get that value and use it instead
                 //talisman pieces and doctrine stones will count as infinite as buying more than is normally offered is part of the intended QoL of this mod
                 if(_limitedStockTypes.Contains(item.itemForTrade))
                 {
-                    _shopInventory.Add(new InventoryItem(item.itemForTrade, GetItemListCountByItemType(item.itemForTrade)));
+                    shopStock = GetItemListCountByItemType(item.itemForTrade);
                 }
-                else
-                {
-                    _shopInventory.Add(new InventoryItem(item.itemForTrade/*,limited quantity goes here*/));
-                }
+
+                _shopInventory.Add(new InventoryItem(item.itemForTrade, shopStock));
             }
         }
 
@@ -162,7 +160,7 @@ namespace MysticAssistant
                 case InventoryItem.ITEM_TYPE.SOUL_FRAGMENT:
                     return _relicsAvailableFromMysticShop.Count;
                 default:
-                    return -1;
+                    return 0;
             }
         }
 

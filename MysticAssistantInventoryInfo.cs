@@ -12,14 +12,6 @@ namespace MysticAssistant
 
         public static string GetShopLabelByItemType(InventoryItem.ITEM_TYPE itemType)
         {
-            //this check is attempting to preserve functionality of the original code that was doing a null check on the category.MostRecentItem
-            //since i have implemented this function to take the place of that piece, it made sense to move it in here.
-            //but i never saw the case where the value was null, so this is mostly just a precaution
-            if (itemType == null)
-            {
-                return "";
-            }
-
             //depending on the item type, get the existing localized string for the item, or get a replacement string that better suits it
             switch (itemType)
             {
@@ -38,7 +30,6 @@ namespace MysticAssistant
             //check what the player is buying to see if they need to be warned about it
             switch (chosenItem.itemForTrade)
             {
-
                 case InventoryItem.ITEM_TYPE.Necklace_Dark:
                     if (DataManager.Instance.HasAymSkin || Inventory.GetItemQuantity(InventoryItem.ITEM_TYPE.Necklace_Dark) >= MAX_COUNT_DARK_NECKLACE)
                     {
@@ -58,7 +49,7 @@ namespace MysticAssistant
                     }
                     break;
                 case InventoryItem.ITEM_TYPE.TALISMAN:
-                    if (DataManager.Instance.TalismanPiecesReceivedFromMysticShop > MAX_COUNT_TALISMAN_PIECES)
+                    if (DataManager.Instance.TalismanPiecesReceivedFromMysticShop >= MAX_COUNT_TALISMAN_PIECES)
                     {
                         return true;
                     }
