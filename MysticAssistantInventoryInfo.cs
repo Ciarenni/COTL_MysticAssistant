@@ -204,6 +204,17 @@ namespace MysticAssistant
                 LastDayChecked = TimeManager.CurrentDay
             };
 
+            TraderTrackerItems moneyTTI = new TraderTrackerItems
+            {
+                //item_type id 20
+                itemForTrade = InventoryItem.ITEM_TYPE.BLACK_GOLD,
+                BuyPrice = 1,
+                BuyOffset = 0,
+                SellPrice = 1,
+                SellOffset = 0,
+                LastDayChecked = TimeManager.CurrentDay
+            };
+
             var ttiList = new List<TraderTrackerItems>
             {
                 necklaceGoldSkullTTI,
@@ -217,7 +228,8 @@ namespace MysticAssistant
                 followerSkinTTI,
                 decorationTTI,
                 tarotCardTTI,
-                relicTTI
+                relicTTI,
+                moneyTTI
             };
 
             return ttiList;

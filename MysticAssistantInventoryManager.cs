@@ -64,6 +64,10 @@ namespace MysticAssistant
                 {
                     shopStock = GetItemListCountByItemType(item.itemForTrade);
                 }
+                else if(item.itemForTrade == InventoryItem.ITEM_TYPE.BLACK_GOLD)
+                {
+                    shopStock = 100;
+                }
 
                 _shopInventory.Add(new InventoryItem(item.itemForTrade, shopStock));
             }

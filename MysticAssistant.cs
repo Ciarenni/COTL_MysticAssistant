@@ -324,6 +324,9 @@ namespace MysticAssistant
             //add item to player's inventory/collection and set or adjust game flags as appropriate
             switch (boughtItemType)
             {
+                case InventoryItem.ITEM_TYPE.BLACK_GOLD:
+                    Inventory.ChangeItemQuantity((int)boughtItemType, 100, 0);
+                    break;
                 case InventoryItem.ITEM_TYPE.Necklace_Dark:
                     Inventory.ChangeItemQuantity((int)boughtItemType, 1, 0);
                     DataManager.Instance.HasAymSkin = true;
