@@ -11,11 +11,39 @@ This was tedious and time-consuming, especially when I really only wanted a spec
 
 So I wrote this mod!
 
+At the time, I had grand plans to add the items besides the necklaces to the shop, the crystal doctrine stones, the talisman fragments, etc., but those had more challenges to them than the necklaces and I had to abandon the project for a time.
+When the Unholy Alliance update came out, the addition of couch co-op functionality broke the mod entirely. I got a fix out for that issue, and decided that it was time for me to pick the project back up.
+I learned that more items had been added to the Mystic Seller in intervening updates that I had not played, and I couldn't very well exclude those.
+
+This wound up being a huge time investment as getting in the functionality that I wanted for the non-necklace items was significantly more involved than for the necklaces.
+I have probably spent around 80 hours working on this project, for something that is pretty simple in the game itself, and the vast majority of that was for this v2.0.0 update.
+For better or worse, this coincided with a time period of being laid off from my job, which is probably the only reason I was able to get this finished at all.
+
+I am unfortunately still without work (as of end of September 2024), so if you like the mod and want to show it with an incredibly kind donation of any amount, I have a ko-fi set up: https://ko-fi.com/ciarenni.
+
+# FAQ
+
+**Why are the follower skins/decorations/tarot cards/relics still randomized in this mod meant to remove the randomization?**
+
+Because there are 14 skins, 11, decorations, 8 tarot cards, and 2 relics that can be obtained from the Mystic Shop normally, as of the Unholy Alliance update. This would result in the shop having over 40 items in it, which is entirely too large. I settled on the compromise of randomizing within a category, though I have tentative plans for a side release that does have the individual items in it. Don't wait for it though, just get this version, I promise it's still a huge improvement to quality of life.
+
+**Why is the icon for relics a little blue thing?**
+
+The long answer for this is very technical. The short answer is that there is no generic icon for a relic like there is for, say, a follower skin. Even individual relics don't have an icon that can be used by the game's shop UI. So I picked something that didn't look like it would be confused with anything else.
+
+**Don't you think that allowing players to easily get a necklace to make followers immortal is really broken?**
+
+Absolutely. However, it is not up to me to police how you choose to play your game.
+
+*My one word of **caution***, and it's potentially a big one, is that I do not know how the game will deal with a bunch of followers being alive forever. I imagine at some point this will have a performance impact, but I do not know where that point is.
+
+I simply ask that you understand that choosing to take advantage of readily-available immortality is not something the game is designed around, and it could negatively impact your experience from both a performance and an enjoyment perspective. This won't be true for everyone, but it might be true for you. I encourage you to be judicious with your usage of granting immortality.
+
 # Lore or something
 
-Seeing the continual frustration of the lamb with receiving unwanted items from its boss, one of the assistants of the Mystic Shopkeeper covertly offers the lamb a deal.
-If the lamb brings the God Tear to it instead of its boss, it can provide the lamb with a specific necklace.
-Unsure of what the assistant gets out of the deal, but not wanting to turn down a good opportunity, the lamb accepts.
+Seeing the continual frustration of the lamb with receiving unwanted items from its boss, one of the assistants of the Mystic Seller covertly offers the lamb a deal.
+If the lamb brings the God Tear to it instead of its boss, it can provide the lamb with a specific item, carefully pilfered and disguised in the records.
+Unsure of what the assistant gets out of the deal but not wanting to turn down a good opportunity, the lamb accepts.
 
 # How to install the mod
 
@@ -37,7 +65,7 @@ There are some items that the project needs to build that are excluded from the 
 1. Download the code, stick it wherever you want.
 2. If you haven't already, set up BepInEx for your Cult of the Lamb installation. You'll need some files from it to be able to build this project.
 3. Check out [this guide](https://pebloop.notion.site/Setup-your-environment-7edd198ac4c14bc8b4f44572bf66d761), specifically starting at section 4, Importing useful dependencies.
-    1. Specifically, you need BepInEx.dll and 0Harmony.dll from the BepInEx installation, and the Assembly-CSharp.dll, UnityEngine.dll, and UnityEngine.CoreModule from the Cult of the Lamb installation.
+    1. Specifically, you need BepInEx.dll and 0Harmony.dll from the BepInEx installation, and the Assembly-CSharp.dll, UnityEngine.dll, UnityEngine.CoreModule.dll, and Unity.TextMeshPro.dll from the Cult of the Lamb installation.
     2. In addition to what is mentioned in the guide, you'll need the UnityEngine.TextMeshPro.dll from the Cult of the Lamb installation.
 4. I followed the guide's steps as described, so the .csproj file is looking for a libs folder in the root directory of the project. You can, of course, adjust that to your liking.
 5. Once all the references are fixed, you should be able to build it! Good luck!
