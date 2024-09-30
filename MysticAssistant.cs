@@ -201,6 +201,17 @@ namespace MysticAssistant
 
         public static void PrefixOnSecondaryInteract(Interaction_MysticShop __instance, StateMachine state)
         {
+            //for reasons unknown to me, even though this method is specified to be prefixed to Interaction_MysticShop,
+            //it is being added to other interactions as well. it was reported that the shop popped up when using the
+            //secondary interact on beds (specifically grand shelters), the town shrine, both of which i was able to replicate,
+            //and on the fertilizer box, which i was not able to replicate.
+            //but this check should fix all of those anyway
+            if (__instance.GetType() != typeof(Interaction_MysticShop))
+            {
+                Console.WriteLine("instance is not type of Interaction_MysticShop, skipping adding secondary interaction");
+                return;
+            }
+
             //i started running into an issue where the mod shop will not open up if there is a SimpleBark (text bubble) up from the mystic shop seller.
             //after spinning the wheel, it will sometimes have a little flavour dialogue pop up and for some reason, this interferes with the secondary action
             //on the mystic shop, but does not prevent the player from using the mystic shop normally.
@@ -224,17 +235,6 @@ namespace MysticAssistant
             _unlockedDecorations.Clear();
             _unlockedTarotCards.Clear();
             _unlockedRelics.Clear();
-
-            //for reasons unknown to me, even though this method is specified to be prefixed to Interaction_MysticShop,
-            //it is being added to other interactions as well. it was reported that the shop popped up when using the
-            //secondary interact on beds (specifically grand shelters), the town shrine, both of which i was able to replicate,
-            //and on the fertilizer box, which i was not able to replicate.
-            //but this check should fix all of those anyway
-            if (__instance.GetType() != typeof(Interaction_MysticShop))
-            {
-                Console.WriteLine("instance is not type of Interaction_MysticShop, skipping adding secondary interaction");
-                return;
-            }
 
             //hide the HUD because it looks nice that way
             HUD_Manager.Instance.Hide(false, 0, false);
