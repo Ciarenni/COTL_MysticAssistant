@@ -457,6 +457,9 @@ namespace MysticAssistant
                         _inventoryManager.SetBoughtRelicFlag(true);
                     }
                     break;
+                //if it is none of the special cases, we can just add the item to the player's inventory. at this point, this is just the non-special necklaces
+                default: Inventory.ChangeItemQuantity((int)boughtItemType, 1, 0);
+                    break;
             }
             //play a pop sound
             UIManager.PlayAudio("event:/followers/pop_in");
