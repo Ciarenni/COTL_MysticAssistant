@@ -15,7 +15,7 @@ using UnityEngine;
 
 namespace MysticAssistant
 {
-    [BepInPlugin("ciarenni.cultofthelamb.mysticassistant", "Mystic Assistant", "2.0.0")]
+    [BepInPlugin("ciarenni.cultofthelamb.mysticassistant", "Mystic Assistant", "2.1.0")]
     public class MysticAssistant : BaseUnityPlugin
     {
         private static readonly Type patchType = typeof(MysticAssistant);
@@ -329,12 +329,10 @@ namespace MysticAssistant
                     break;
                 case InventoryItem.ITEM_TYPE.Necklace_Dark:
                     Inventory.ChangeItemQuantity((int)boughtItemType, 1, 0);
-                    DataManager.Instance.HasAymSkin = true;
                     break;
 
                 case InventoryItem.ITEM_TYPE.Necklace_Light:
                     Inventory.ChangeItemQuantity((int)boughtItemType, 1, 0);
-                    DataManager.Instance.HasBaalSkin = true;
                     break;
 
                 case InventoryItem.ITEM_TYPE.CRYSTAL_DOCTRINE_STONE:

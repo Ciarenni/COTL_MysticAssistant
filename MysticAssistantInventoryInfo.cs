@@ -29,14 +29,26 @@ namespace MysticAssistant
             //check what the player is buying to see if they need to be warned about it
             switch (chosenItem.itemForTrade)
             {
+                //for both the dark and light necklaces, because you are supposed to only get one of each ever (with the exception of a few edge cases)
+                //the appropriate checks are:
+                //  do they have the follower skin (i.e. aym/baal was created via the sacrifice ritual)
+                //  is the necklace in their inventory
+                //  is a living follower wearing the necklace
+                //we do not need to check dead followers as if the follower wearing the necklace died, either
+                //  they correctly summoned aym/baal via sacrifice and the appropriate HasSkin flag will be set
+                //  or the follower was sacrificed or died in such a way that aym/baal was not summoned, and a new necklace should be obtainable
                 case InventoryItem.ITEM_TYPE.Necklace_Dark:
-                    if (DataManager.Instance.HasAymSkin || Inventory.GetItemQuantity(InventoryItem.ITEM_TYPE.Necklace_Dark) >= MAX_COUNT_DARK_NECKLACE)
+                    if (DataManager.Instance.HasAymSkin ||
+                        Inventory.GetItemQuantity(InventoryItem.ITEM_TYPE.Necklace_Dark) >= MAX_COUNT_DARK_NECKLACE ||
+                        DataManager.Instance.Followers.Exists(f => f.Necklace == InventoryItem.ITEM_TYPE.Necklace_Dark))
                     {
                         return true;
                     }
                     break;
                 case InventoryItem.ITEM_TYPE.Necklace_Light:
-                    if (DataManager.Instance.HasBaalSkin || Inventory.GetItemQuantity(InventoryItem.ITEM_TYPE.Necklace_Light) >= MAX_COUNT_LIGHT_NECKLACE)
+                    if (DataManager.Instance.HasBaalSkin ||
+                        Inventory.GetItemQuantity(InventoryItem.ITEM_TYPE.Necklace_Light) >= MAX_COUNT_LIGHT_NECKLACE ||
+                        DataManager.Instance.Followers.Exists(f => f.Necklace == InventoryItem.ITEM_TYPE.Necklace_Light))
                     {
                         return true;
                     }

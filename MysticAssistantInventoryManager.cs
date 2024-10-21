@@ -33,6 +33,15 @@ namespace MysticAssistant
             //get the max amount of doctrine stones a player is allowed to buy from the mystic shop from the private variable on the Interaction_MysticShop that controls this.
             //this should support future updates adding more crystal doctrine stones automatically as long as they dont change the variable name
             maxCountCrystalDoctrineStone = (int)Traverse.Create(instance).Field("maxAmountOfCrystalDoctrines").GetValue();
+
+            //because of the way i read the original code, there is a distinct chance that players who used this mod before 2.1.0 have had the flag for having
+            //Aym and Baal as followers set incorrectly. to resolve this, we can check the list of living and dead followers to see if they have ever had them.
+            //the flag is then set appropriate for each of these, which should enable players to be able to acquire them when they were previously locked out from it.
+            //sorry about that everyone!
+            bool playerHasAym = DataManager.Instance.Followers.Exists(f => f.Name == "Aym") || DataManager.Instance.Followers_Dead.Exists(f => f.Name == "Aym");
+            DataManager.Instance.HasAymSkin = playerHasAym;
+            bool playerHasBaal = DataManager.Instance.Followers.Exists(f => f.Name == "Baal") || DataManager.Instance.Followers_Dead.Exists(f => f.Name == "Baal");
+            DataManager.Instance.HasBaalSkin = playerHasBaal;
         }
 
         public void ResetInventory()
