@@ -38,9 +38,11 @@ namespace MysticAssistant
             //Aym and Baal as followers set incorrectly. to resolve this, we can check the list of living and dead followers to see if they have ever had them.
             //the flag is then set appropriate for each of these, which should enable players to be able to acquire them when they were previously locked out from it.
             //sorry about that everyone!
-            bool playerHasAym = DataManager.Instance.Followers.Exists(f => f.Name == "Aym") || DataManager.Instance.Followers_Dead.Exists(f => f.Name == "Aym");
+            bool playerHasAym = DataManager.Instance.Followers.Exists(f => f.Name == "Aym") || DataManager.Instance.Followers_Dead.Exists(f => f.Name == "Aym") ||
+                DataManager.Instance.HasReturnedAym || DataManager.Instance.HasReturnedBoth;
             DataManager.Instance.HasAymSkin = playerHasAym;
-            bool playerHasBaal = DataManager.Instance.Followers.Exists(f => f.Name == "Baal") || DataManager.Instance.Followers_Dead.Exists(f => f.Name == "Baal");
+            bool playerHasBaal = DataManager.Instance.Followers.Exists(f => f.Name == "Baal") || DataManager.Instance.Followers_Dead.Exists(f => f.Name == "Baal") ||
+                DataManager.Instance.HasReturnedBaal || DataManager.Instance.HasReturnedBoth;
             DataManager.Instance.HasBaalSkin = playerHasBaal;
         }
 
