@@ -19,7 +19,7 @@ This wound up being a huge time investment as getting in the functionality that 
 I have probably spent around 80 hours working on this project, for something that is pretty simple in the game itself, and the vast majority of that was for this v2.0.0 update.
 For better or worse, this coincided with a time period of being laid off from my job, which is probably the only reason I was able to get this finished at all.
 
-I am unfortunately still without work (as of end of September 2024), so if you like the mod and want to show it with an incredibly kind donation of any amount, I have a ko-fi set up: https://ko-fi.com/ciarenni.
+If you like the mod and want to show it with an incredibly kind donation of any amount, I have a ko-fi set up: https://ko-fi.com/ciarenni. I have a steady job, so I certainly don't need it, but it will always be appreciated.
 
 # FAQ
 
