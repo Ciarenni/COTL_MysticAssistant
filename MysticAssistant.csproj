@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFramework>netstandard2.1</TargetFramework>
     <AssemblyName>MysticAssistant</AssemblyName>
     <Description>Adds a standard shop to the Mystic Shop</Description>
     <Version>1.0.0</Version>
@@ -10,10 +10,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="libs\Unity.UnholyAlliance\**" />
+    <EmbeddedResource Remove="libs\Unity.UnholyAlliance\**" />
+    <None Remove="libs\Unity.UnholyAlliance\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all" />
     <PackageReference Include="BepInEx.Core" Version="5.*" />
-    <PackageReference Include="BepInEx.PluginInfoProps" Version="1.*" />
-    <PackageReference Include="UnityEngine.Modules" Version="2019.4.40" IncludeAssets="compile" />
+    <PackageReference Include="BepInEx.PluginInfoProps" Version="2.1.0" />
+    <PackageReference Include="UnityEngine.Modules" Version="6000.3.10" IncludeAssets="compile" />
   </ItemGroup>
   
   <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
@@ -25,10 +31,13 @@
       <HintPath>libs\BepInEx\0Harmony.dll</HintPath>
     </Reference>
     <Reference Include="Assembly-CSharp">
-      <HintPath>libs\Assembly-CSharp.dll</HintPath>
+      <HintPath>libs\Assembly-CSharp.woolhaven.dll</HintPath>
     </Reference>
     <Reference Include="BepInEx">
       <HintPath>libs\BepInEx\BepInEx.dll</HintPath>
+    </Reference>
+    <Reference Include="Sirenix.Serialization">
+      <HintPath>libs\Unity\Sirenix.Serialization.dll</HintPath>
     </Reference>
     <Reference Include="Unity.TextMeshPro">
       <HintPath>libs\Unity\Unity.TextMeshPro.dll</HintPath>

@@ -15,7 +15,7 @@ using UnityEngine;
 
 namespace MysticAssistant
 {
-    [BepInPlugin("ciarenni.cultofthelamb.mysticassistant", "Mystic Assistant", "2.1.0")]
+    [BepInPlugin("ciarenni.cultofthelamb.mysticassistant", "Mystic Assistant", "2.2.0")]
     public class MysticAssistant : BaseUnityPlugin
     {
         private static readonly Type patchType = typeof(MysticAssistant);
@@ -177,7 +177,7 @@ namespace MysticAssistant
                             if (____params.HideOnSelection)
                             {
                                 //if the UIItemSelector should be hidden on closing, like a farm plot, hide it after selection
-                                __instance.Hide();
+                                __instance.Hide(false);
                             }
                             else
                             {

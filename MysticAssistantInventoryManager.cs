@@ -33,6 +33,8 @@ namespace MysticAssistant
             //get the max amount of doctrine stones a player is allowed to buy from the mystic shop from the private variable on the Interaction_MysticShop that controls this.
             //this should support future updates adding more crystal doctrine stones automatically as long as they dont change the variable name
             maxCountCrystalDoctrineStone = (int)Traverse.Create(instance).Field("maxAmountOfCrystalDoctrines").GetValue();
+            //they added a paid DLC that adds more crystal doctrine stones but did not update (or even use) the variable. instead they use the below check, so i do as well
+            maxCountCrystalDoctrineStone += DataManager.Instance.MAJOR_DLC ? 4 : 0;
 
             //because of the way i read the original code, there is a distinct chance that players who used this mod before 2.1.0 have had the flag for having
             //Aym and Baal as followers set incorrectly. to resolve this, we can check the list of living and dead followers to see if they have ever had them.
